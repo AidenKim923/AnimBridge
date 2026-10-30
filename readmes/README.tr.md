@@ -60,5 +60,7 @@ Katkılarınızı bekliyoruz. [CONTRIBUTING.md](../CONTRIBUTING.md) dosyasına v
 
 ## Lisans
 
+Copyright © 2026 Minsung Kim (aurenixs) and AnimBridge contributors.
+
 AnimBridge, [MIT lisansı](../LICENSE) ile sunulur. Blender ve WebView2 dâhil üçüncü taraf bileşenler kendi lisanslarını korur; [üçüncü taraf bildirimlerine](../packaging/THIRD_PARTY_NOTICES.txt) bakın.
 

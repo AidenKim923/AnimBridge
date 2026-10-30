@@ -60,4 +60,6 @@
 
 ## الترخيص
 
+Copyright © 2026 Minsung Kim (aurenixs) and AnimBridge contributors.
+
 يخضع AnimBridge لـ[ترخيص MIT](../LICENSE). تحتفظ مكوّنات الأطراف الثالثة، بما فيها Blender وWebView2، بتراخيصها الخاصة؛ راجع [إشعارات الأطراف الثالثة](../packaging/THIRD_PARTY_NOTICES.txt).

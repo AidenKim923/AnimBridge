@@ -60,5 +60,7 @@
 
 ## 授權
 
+Copyright © 2026 Minsung Kim (aurenixs) and AnimBridge contributors.
+
 AnimBridge 採用 [MIT 授權](../LICENSE)。包括 Blender 和 WebView2 在內的第三方元件仍適用各自的授權；請參閱[第三方聲明](../packaging/THIRD_PARTY_NOTICES.txt)。
 

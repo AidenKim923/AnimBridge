@@ -60,5 +60,7 @@
 
 ## ライセンス
 
+Copyright © 2026 Minsung Kim (aurenixs) and AnimBridge contributors.
+
 AnimBridgeは[MITライセンス](../LICENSE)で提供されています。BlenderやWebView2を含むサードパーティ製コンポーネントには、それぞれ独自のライセンスが引き続き適用されます。[サードパーティに関する通知](../packaging/THIRD_PARTY_NOTICES.txt)をご覧ください。
 

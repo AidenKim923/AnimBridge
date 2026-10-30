@@ -60,5 +60,7 @@
 
 ## लाइसेंस
 
+Copyright © 2026 Minsung Kim (aurenixs) and AnimBridge contributors.
+
 AnimBridge [MIT लाइसेंस](../LICENSE) के अंतर्गत उपलब्ध है। Blender और WebView2 सहित तृतीय-पक्ष घटकों पर उनके अपने लाइसेंस लागू रहते हैं; [तृतीय-पक्ष सूचनाएँ](../packaging/THIRD_PARTY_NOTICES.txt) देखें।
 

@@ -60,5 +60,7 @@ Contribuições são bem-vindas. Consulte [CONTRIBUTING.md](../CONTRIBUTING.md) 
 
 ## Licença
 
+Copyright © 2026 Minsung Kim (aurenixs) and AnimBridge contributors.
+
 O AnimBridge é distribuído sob a [licença MIT](../LICENSE). Os componentes de terceiros, incluindo Blender e WebView2, mantêm suas próprias licenças; consulte os [avisos de terceiros](../packaging/THIRD_PARTY_NOTICES.txt).
 
