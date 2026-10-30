@@ -120,7 +120,11 @@ let native = {
 let view = {
   page: 'home',
   active: '',
+  // SOURCE LIBRARY scope: the root's Recent path, then a folder inside it.
+  source: '',
   folder: '',
+  // Tree rows the user expanded or collapsed, keyed by treeKey().
+  tree: {},
   search: '',
   type: [],
   rig: [],
@@ -474,6 +478,7 @@ function accept(data) {
   if (data.event === 'nativeDrop') {
     dragDepth = 0;
     $('#drop-overlay')?.classList.remove('visible');
+    recordPageChange('analysis');
     view.page = 'analysis';
     native.scan = { state: 'scanning', path: '' };
     render();
@@ -497,6 +502,8 @@ function accept(data) {
         if (view.page === 'queue' && !native.busy) go('complete');
       })
       .catch(showError);
+  } else if (data.event === 'updateProgress') {
+    showUpdateProgress(data.data || {});
   } else if (data.event === 'error') {
     showError(messageText(data.data));
   } else if (data.ok === false) {
@@ -583,7 +590,9 @@ function saveView() {
       'animbridge.view',
       JSON.stringify({
         search: view.search,
+        source: view.source,
         folder: view.folder,
+        tree: view.tree,
         sort: view.sort,
         layout: view.layout,
         type: view.type,
@@ -607,7 +616,62 @@ function showError(e) {
   render();
   toast(view.error);
 }
-function go(page) {
+// In-app page history, so the mouse back button, Alt+Left and Backspace work like a browser's.
+// `back` holds the pages we came from (newest last); `forward` the ones we stepped back from.
+const pageHistory = { back: [], forward: [] };
+const PAGE_HISTORY_LIMIT = 40;
+
+// Call right before view.page changes. `via` is 'back' or 'forward' when replaying history,
+// and empty for a normal navigation (which also discards the forward entries, like a browser).
+function recordPageChange(next, via = '') {
+  const from = view.page;
+  if (next === from) return;
+  if (via === 'back' && pageHistory.back.at(-1) === next) {
+    pageHistory.back.pop();
+    pageHistory.forward.push(from);
+    return;
+  }
+  if (via === 'forward' && pageHistory.forward.at(-1) === next) {
+    pageHistory.forward.pop();
+  } else {
+    pageHistory.forward.length = 0;
+  }
+  // Never stack the same page twice in a row.
+  if (pageHistory.back.at(-1) !== from) pageHistory.back.push(from);
+  if (pageHistory.back.length > PAGE_HISTORY_LIMIT) pageHistory.back.shift();
+}
+// A finished export run is no longer a page worth returning to.
+function isStaleHistoryPage(page) {
+  return page === 'queue' && !native.busy;
+}
+// Closes the open dialog or detail drawer first; otherwise steps through the page history.
+// Returns true when something happened, so callers know whether to swallow the key or button.
+function navigateHistory(direction) {
+  if (modal.open) {
+    // Reuse the dialog's own cancel handler so it cleans up exactly like Escape does.
+    const cancel = new Event('cancel', { cancelable: true });
+    modal.dispatchEvent(cancel);
+    if (!cancel.defaultPrevented) modal.close();
+    return true;
+  }
+  if (view.drawer) {
+    view.drawer = false;
+    render();
+    return true;
+  }
+  const stack = pageHistory[direction];
+  while (stack.length && (stack.at(-1) === view.page || isStaleHistoryPage(stack.at(-1)))) stack.pop();
+  if (!stack.length) return false;
+  go(stack.at(-1), { via: direction });
+  return true;
+}
+// Explicit "return to X" buttons: when X is where we just came from, step back instead of
+// pushing a loop (library -> avatar -> library -> avatar ...).
+function goOrBack(page) {
+  if (pageHistory.back.at(-1) === page) go(page, { via: 'back' });
+  else go(page);
+}
+function go(page, { via = '' } = {}) {
   if (settingsDirty && view.page === 'settings' && page !== 'settings') {
     confirmDialog(t('ui.029'), t('ui.030'), [
       { label: t('ui.031'), value: 'stay' },
@@ -615,15 +679,16 @@ function go(page) {
       { label: t('ui.033'), value: 'save', primary: true },
     ]).then(async (v) => {
       if (v === 'save') {
-        if (await saveSettings()) go(page);
+        if (await saveSettings()) go(page, { via });
       } else if (v === 'discard') {
         settingsDirty = false;
         settingsDraft = { ...native.settings };
-        go(page);
+        go(page, { via });
       }
     });
     return;
   }
+  recordPageChange(page, via);
   scrollPositions.set(view.page, $('.page')?.scrollTop || 0);
   if (page !== 'preview' || view.page !== page) stopPlay();
   hoverPreview('');
@@ -698,11 +763,10 @@ function selectedClips() {
   return clips().filter((c) => selected.has(c.id));
 }
 function visibleClips() {
+  const inScope = scopeFilter();
   let a = clips().filter(
     (c) =>
-      (!view.folder ||
-        String(c.virtual_path) === view.folder ||
-        String(c.virtual_path).startsWith(view.folder.replace(/\/$/, '') + '/')) &&
+      inScope(c) &&
       (!view.search || c.name.toLocaleLowerCase(getLocale()).includes(view.search.toLocaleLowerCase(getLocale()))) &&
       (!view.type.length || view.type.includes(typeOf(c))) &&
       (!view.rig.length || view.rig.includes(c.rigType || 'unknown')) &&
@@ -828,7 +892,7 @@ function heading(title, subtitle = '', eyebrow = '') {
     `<div class="page-heading"><div>${eyebrow ? `<div class="eyebrow">${eyebrow}</div>` : ''}`,
     `<h1 id="main-title" tabindex="-1">${esc(title)}</h1>`,
     `${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div>`,
-    `${['library', 'preview'].includes(view.page) ? button(t('ui.061'), 'toggleDetail', 'info', 'ghost drawer-toggle') : ''}`,
+    `${view.page === 'library' ? button(t('ui.061'), 'toggleDetail', 'info', 'ghost drawer-toggle') : ''}`,
     `</div>`,
   ].join('');
 }
@@ -839,6 +903,11 @@ function labelInput(label, id, value = '', hint = '', placeholder = '') {
     `${hint ? `<span class="hint" id="${id}-hint">${esc(hint)}</span>` : ''}`,
     `</div>`,
   ].join('');
+}
+// The "detected automatically" note applies only while the field still shows the editor that
+// auto-discovery connected; a user-chosen editor shows no note.
+function autoDetectedHint(auto, currentPath, key) {
+  return auto?.state === 'connected' && auto.path && auto.path === currentPath ? t(key) : '';
 }
 function pickerField(label, id, value = '', action = 'pickFolder', hint = '') {
   if (native.runtimeReadOnly && ['setting-python', 'setting-blender'].includes(id)) return `<div class="field"><label for="${id}">${esc(label)}</label><input id="${id}" value="${esc(value)}" readonly></div>`;
@@ -875,6 +944,101 @@ function rail() {
     `${icon('settings')}</button></nav>`,
   ].join('');
 }
+// SOURCE LIBRARY model. Every dropped package, folder or file is one root
+// (its Recent row). A clip belongs to a root through its packageId, so two
+// sources that both contain "Assets/Animations" never mix.
+function samePath(a, b) {
+  const norm = (p) => {
+    const text = String(p || '').replace(/\\/g, '/').replace(/\/+$/, '');
+    // Windows paths are case-insensitive.
+    return document.documentElement.dataset.platform === 'windows' ? text.toLowerCase() : text;
+  };
+  return !!a && norm(a) === norm(b);
+}
+function sourceRoots() {
+  const loaded = native.session.packages || [];
+  const all = clips();
+  return (native.packages || []).map((row) => {
+    const path = row.path || row.sourcePath;
+    const ids = new Set(loaded.filter((p) => samePath(p.sourcePath, path)).map((p) => p.packageId));
+    return {
+      path,
+      name: row.name || basename(path),
+      directory: !!row.directory,
+      clips: all.filter((c) => ids.has(c.packageId)),
+    };
+  });
+}
+function currentRoot() {
+  return view.source ? sourceRoots().find((r) => samePath(r.path, view.source)) : null;
+}
+// Predicate for the library: clips of the open root, below the open folder.
+function scopeFilter() {
+  const root = currentRoot();
+  if (!root) return () => true;
+  const ids = new Set(root.clips.map((c) => c.id));
+  const prefix = view.folder ? view.folder.replace(/\/$/, '') + '/' : '';
+  return (c) => ids.has(c.id) && (!prefix || String(c.virtual_path || '').startsWith(prefix));
+}
+// Every folder (and its ancestors) that holds at least one clip of a root.
+function rootFolders(root) {
+  const folders = new Set();
+  for (const c of root.clips) {
+    const parts = String(c.virtual_path || '').split('/').slice(0, -1);
+    for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join('/'));
+  }
+  return [...folders].sort((a, b) => a.localeCompare(b, getLocale()));
+}
+function treeKey(root, folder) {
+  return root.path + '\n' + folder;
+}
+// Roots start expanded and folders collapsed until the user toggles them;
+// the folder that is open in the library always shows its parents.
+function treeOpen(root, folder) {
+  const key = treeKey(root, folder);
+  if (key in view.tree) return view.tree[key];
+  if (samePath(view.source, root.path) && view.folder.startsWith(folder ? folder + '/' : '')) return true;
+  return !folder;
+}
+function treeRow(root, folder, depth, hasChildren, count) {
+  const isRoot = !folder;
+  const open = hasChildren && treeOpen(root, folder);
+  const active = samePath(view.source, root.path) && view.folder === folder;
+  const label = isRoot ? root.name : basename(folder);
+  const fileRoot = isRoot && !root.directory && !/\.unitypackage$/i.test(root.name);
+  return [
+    `<div class="tree-row" role="treeitem" aria-level="${depth + 1}"`,
+    hasChildren ? ` aria-expanded="${open}"` : '',
+    ` style="padding-inline-start:${Math.min(depth, 6) * 12}px">`,
+    hasChildren
+      ? [
+          `<button class="tree-toggle" data-action="toggleTree" data-key="${esc(treeKey(root, folder))}" data-open="${open}"`,
+          ` aria-label="${esc(t(open ? 'ui.548' : 'ui.549', { name: label }))}">`,
+          `${icon(open ? 'down' : 'chevron')}</button>`,
+        ].join('')
+      : `<span class="tree-toggle-space"></span>`,
+    `<button class="tree-item ${active ? 'active' : ''}" data-action="openSource"`,
+    ` data-source="${esc(root.path)}" data-value="${esc(folder)}"`,
+    isRoot ? ` data-source-root="${esc(root.path)}" aria-haspopup="menu"` : '',
+    ` title="${esc(isRoot ? root.path : folder)}">`,
+    `${icon(fileRoot ? 'file' : 'folder')}<span class="label">${esc(label)}</span>`,
+    `<span class="tree-count">${formatNumber(count)}</span></button></div>`,
+  ].join('');
+}
+function sourceTree(root) {
+  const folders = rootFolders(root);
+  const children = (parent) => folders.filter((f) => f.split('/').slice(0, -1).join('/') === parent);
+  const countUnder = (folder) =>
+    root.clips.filter((c) => String(c.virtual_path || '').startsWith(folder + '/')).length;
+  const branch = (folder, depth) => {
+    const kids = children(folder);
+    const count = folder ? countUnder(folder) : root.clips.length;
+    const rows = [treeRow(root, folder, depth, kids.length > 0, count)];
+    if (kids.length && treeOpen(root, folder)) for (const kid of kids) rows.push(branch(kid, depth + 1));
+    return rows.join('');
+  };
+  return branch('', 0);
+}
 function sidebar() {
   let content = '';
   if (view.page === 'home') {
@@ -907,48 +1071,29 @@ function sidebar() {
       `</div>`,
     ].join('');
   } else {
-    const folders = [
-      ...new Set(
-        clips()
-          .map((c) =>
-            String(c.virtual_path || '')
-              .split('/')
-              .slice(0, -1)
-              .join('/'),
-          )
-          .filter(Boolean),
-      ),
-    ].sort();
     content = [
       `<div class="sidebar-header"><h2>${esc(t('ui.078'))}`,
       `</h2><button class="icon-button" data-action="openFiles" aria-label="${esc(t('ui.079'))}">`,
       `${icon('plus')}</button></div><div class="sidebar-nav">`,
-      `<button class="side-item ${!view.folder ? 'active' : ''}" data-action="folder" data-value="">`,
+      `<button class="side-item ${!view.source ? 'active' : ''}" data-action="openSource" data-source="" data-value="">`,
       `${icon('library')}${esc(t('ui.080'))}<span class="tree-count">`,
       `${formatNumber(clips().length)}</span></button></div>`,
       `<div class="sidebar-section">${esc(t('ui.081'))}`,
-      `</div><div class="tree">`,
-      `${(native.packages || []).map((p) => [
-        `<button class="tree-item" data-page="analysis" title="${esc(p.path || p.sourcePath)}">`,
-        `${icon('down')}${icon('folder')}<span class="label">`,
-        `${esc(p.name || basename(p.path || p.sourcePath))}`,
-        `</span></button>`,
-      ].join('')).join('')}`,
-      `${folders.map((f) => [
-        `<button class="tree-item ${view.folder === f ? 'active' : ''}" style="padding-inline-start:${18 + Math.min(f.split('/').length, 4) * 9}px" data-action="folder" data-value="${esc(f)}" title="${esc(f)}">`,
-        `${icon('folder')}<span class="label">${esc(basename(f))}`,
-        `</span><span class="tree-count">${formatNumber(clips().filter((c) => c.virtual_path?.startsWith(f + '/')).length)}`,
-        `</span></button>`,
-      ].join('')).join('')}`,
+      `</div><div class="tree" role="tree" aria-label="${esc(t('ui.081'))}">`,
+      `${sourceRoots().map(sourceTree).join('')}`,
       `${!clips().length ? `<p class="small muted" style="padding:18px 10px">${esc(t('ui.082'))}</p>` : ''}`,
       `</div>`,
     ].join('');
   }
   return [
     `<aside class="sidebar" aria-label="${esc(t('ui.083'))}">`,
-    `${content}<div class="spacer"></div><div class="sidebar-footer">`,
-    `${icon('lock')}${esc(t('ui.084'))}</div></aside>`,
+    `${content}<div class="spacer"></div></aside>`,
   ].join('');
+}
+function scopeLabel() {
+  const root = currentRoot();
+  if (!root) return '';
+  return view.folder ? `${root.name} / ${view.folder}` : root.name;
 }
 function breadcrumb() {
   const names = {
@@ -968,7 +1113,7 @@ function breadcrumb() {
   return [
     `<div class="workspace-top"><div class="breadcrumb">`,
     `<button data-page="home">${esc(t('ui.091'))}</button>`,
-    `${icon('chevron')}<span>${esc(view.folder || names[view.page])}`,
+    `${icon('chevron')}<span>${esc(scopeLabel() || names[view.page])}`,
     `</span>${view.page === 'preview' && active() ? icon('chevron') + `<span>${esc(active().name)}</span>` : ''}`,
     `</div>${button(t('ui.060'), 'openFiles', 'folderOpen', 'primary')}`,
     `</div>`,
@@ -1015,6 +1160,40 @@ function home() {
     `</h3><p>${esc(t('ui.112'))}</p></div></div></div>`,
   ].join('');
 }
+// Clips the export page can handle in either mode: original-file extraction
+// or a bake that is already ready.
+function exportableClips() {
+  return clips().filter((c) => canExtract(c) || ready(c) === 'ready');
+}
+function exportAllBar() {
+  const count = exportableClips().length;
+  return [
+    `<div class="export-all">`,
+    button(t('ui.545', { count }), 'exportAll', 'upload', 'primary', count ? '' : 'disabled aria-describedby="export-all-reason"'),
+    count ? '' : `<span class="small muted" id="export-all-reason">${esc(t('ui.546'))}</span>`,
+    `</div>`,
+  ].join('');
+}
+// Cleanup and similar warnings repeat once per file. Lines that differ only
+// in their paths become one row with a count; the full lines stay expandable.
+function groupedWarnings() {
+  const groups = new Map();
+  for (const line of sessionWarnings()) {
+    const key = String(line).replace(/(?:[A-Za-z]:[\\/]|\\\\|\/)[^\s'"]*/g, '…');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(line);
+  }
+  return [...groups].map(([summary, lines]) => ({ summary, lines }));
+}
+function warningItem(group) {
+  if (group.lines.length === 1) return `<li>${esc(group.lines[0])}</li>`;
+  return [
+    `<li><details class="warning-group"><summary>${esc(group.summary)}`,
+    ` <span class="warning-count">${esc(t('ui.547', { count: group.lines.length }))}</span></summary>`,
+    `<ul>${group.lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>`,
+    `</details></li>`,
+  ].join('');
+}
 function analysis() {
   const cs = clips(),
     scan = native.scan || {},
@@ -1053,7 +1232,7 @@ function analysis() {
       .join(
         '',
       )}`,
-    `</div><div class="two-column"><section class="panel">`,
+    `</div>${exportAllBar()}<div class="two-column"><section class="panel">`,
     `<h2>${esc(t('ui.122'))}</h2>${notice(t('ui.123'), t('ui.124'), 'download')}`,
     `<div class="divider"></div>${notice(t('ui.125'), t('ui.126'), 'bone')}`,
     `</section><section class="panel"><h2>${esc(t('ui.127'))}`,
@@ -1062,9 +1241,7 @@ function analysis() {
     sessionWarnings().length
       ? [
         `<ul class="warning-list">`,
-        `${sessionWarnings()
-            .map((w) => `<li>${esc(w)}</li>`)
-            .join('')}`,
+        `${groupedWarnings().map(warningItem).join('')}`,
         `</ul>`,
       ].join('')
       : `<p class="small muted">${esc(cs.length ? t('ui.128') : t('ui.129'))}</p>`
@@ -1171,17 +1348,16 @@ function library() {
   const all = clips(),
     a = visibleClips(),
     hidden = selectedClips().filter((c) => !a.some((x) => x.id === c.id)).length;
-  const folderNames = [
-    ...new Set(
-      all
-        .filter((c) => !view.folder || c.virtual_path?.startsWith(view.folder + '/'))
-        .map((c) => {
-          const p = (c.virtual_path || '').split('/').slice(0, -1);
-          return view.folder ? p.slice(view.folder.split('/').length).filter(Boolean)[0] : p[0];
-        })
-        .filter(Boolean),
-    ),
-  ].slice(0, 5);
+  const root = currentRoot();
+  const folderCards = (
+    root
+      ? rootFolders(root)
+          .filter((f) => f.split('/').slice(0, -1).join('/') === view.folder)
+          .map((f) => ({ source: root.path, folder: f, label: basename(f) }))
+      : sourceRoots()
+          .filter((r) => r.clips.length)
+          .map((r) => ({ source: r.path, folder: '', label: r.name }))
+  ).slice(0, 5);
   return [
     `${heading(t('ui.151'), all.length ? t('ui.152', { value0: native.packages?.length || 1, value1: all.length }) : t('ui.153'))}`,
     `<div class="toolbar"><div class="search">${icon('search')}`,
@@ -1190,11 +1366,11 @@ function library() {
     `</div><button class="btn filter-toggle ${view.filters ? 'active' : ''}" data-action="toggleFilters" aria-expanded="${view.filters}">`,
     `${icon('filter')}${esc(t('ui.156'))}</button></div>`,
     `${view.filters ? filters() : ''}`,
-    `${!view.search && !view.type.length && !view.ready.length && folderNames.length ? [
+    `${!view.search && !view.type.length && !view.ready.length && folderCards.length ? [
       `<div class="folder-grid">`,
-      `${folderNames.map((f) => [
-        `<button class="folder-card" data-action="folder" data-value="${esc(view.folder ? view.folder + '/' + f : f)}">`,
-        `${folderArt()}<span>${esc(f)}</span><small>${esc(t('ui.157'))}`,
+      `${folderCards.map((f) => [
+        `<button class="folder-card" data-action="openSource" data-source="${esc(f.source)}" data-value="${esc(f.folder)}">`,
+        `${folderArt()}<span>${esc(f.label)}</span><small>${esc(t('ui.157'))}`,
         `</small></button>`,
       ].join('')).join('')}`,
       `</div>`,
@@ -1251,36 +1427,62 @@ function previewPlaceholder(c, mini = false) {
     `</div>`,
   ].join('');
 }
+// Clip facts shown in the library's right column and below the preview player.
+function clipFacts(c) {
+  return [
+    `<section class="clip-facts"><h3>${esc(t('ui.061'))}</h3><dl><div class="kv">`,
+    `<dt>${esc(t('ui.196'))}</dt><dd>${esc(typeLabel(c))}`,
+    `</dd></div><div class="kv"><dt>${esc(t('ui.197'))}`,
+    `</dt><dd>${esc(seconds(c.duration || previews.get(c.id)?.duration))}`,
+    `</dd></div><div class="kv"><dt>${esc(t('ui.198'))}`,
+    `</dt><dd>${c.fps || previews.get(c.id)?.fps ? `${formatNumber(c.fps || previews.get(c.id).fps, { maximumFractionDigits: 2 })} FPS` : t('ui.002')}`,
+    `</dd></div><div class="kv"><dt>${esc(t('ui.118'))}`,
+    `</dt><dd>${esc(canExtract(c) ? t('ui.199') : t('ui.200'))}`,
+    `</dd></div><div class="kv"><dt>${esc(t('ui.194'))}`,
+    `</dt><dd>${esc(previews.get(c.id)?.status === 'ready' ? t('ui.201') : t('ui.202'))}`,
+    `</dd></div><div class="kv"><dt>${esc(t('ui.203'))}`,
+    `</dt><dd>${esc(readyLabel(c))}</dd></div></dl><p class="full-path">`,
+    `${esc(c.virtual_path || c.source)}</p><button class="link-button" data-action="copyPath">`,
+    `${icon('copy')}${esc(t('ui.204'))}</button></section>`,
+  ].join('');
+}
+// The "connection needed" notice and the Unreal-specific controls for a clip.
+function clipNotices(c) {
+  return [
+    c.kind === 'uasset' ? unrealAssetPanel(c) : ready(c) !== 'ready' ? notice(t('ui.205'), c.note || t('ui.206'), 'link') : '',
+    c.route === 'unreal-export' ? button(t('ui.484'), 'revealClipFile', 'folderOpen', 'full') : '',
+  ].join('');
+}
 function detail() {
   const c = active();
   return [
     `<aside class="detail ${view.drawer ? 'open' : ''}" aria-label="${esc(t('ui.191'))}">`,
     `<button class="icon-button drawer-close" data-action="toggleDetail" aria-label="${esc(t('ui.192'))}">`,
-    `${icon('close')}</button><h2>${esc(view.page === 'preview' ? t('ui.193') : t('ui.194'))}`,
+    `${icon('close')}</button><h2>${esc(t('ui.194'))}`,
     `</h2>${c ? `<div class="detail-name">${esc(c.name)}</div><div class="badges">${badge(typeLabel(c))}${badge(readyLabel(c), '', 'outline')}</div>` : ''}`,
     `<div class="preview-mini">${c && previews.get(c.id)?.status === 'ready' ? `<canvas data-viewer="${esc(c.id)}" aria-label="${esc(t('ui.195'))}"></canvas>` : previewPlaceholder(c, true)}`,
     `</div>`,
     `${c ? [
-      `<section><h3>${esc(t('ui.061'))}</h3><dl><div class="kv">`,
-      `<dt>${esc(t('ui.196'))}</dt><dd>${esc(typeLabel(c))}`,
-      `</dd></div><div class="kv"><dt>${esc(t('ui.197'))}`,
-      `</dt><dd>${esc(seconds(c.duration || previews.get(c.id)?.duration))}`,
-      `</dd></div><div class="kv"><dt>${esc(t('ui.198'))}`,
-      `</dt><dd>${c.fps || previews.get(c.id)?.fps ? `${formatNumber(c.fps || previews.get(c.id).fps, { maximumFractionDigits: 2 })} FPS` : t('ui.002')}`,
-      `</dd></div><div class="kv"><dt>${esc(t('ui.118'))}`,
-      `</dt><dd>${esc(canExtract(c) ? t('ui.199') : t('ui.200'))}`,
-      `</dd></div><div class="kv"><dt>${esc(t('ui.194'))}`,
-      `</dt><dd>${esc(previews.get(c.id)?.status === 'ready' ? t('ui.201') : t('ui.202'))}`,
-      `</dd></div><div class="kv"><dt>${esc(t('ui.203'))}`,
-      `</dt><dd>${esc(readyLabel(c))}</dd></div></dl><p class="full-path">`,
-      `${esc(c.virtual_path || c.source)}</p><button class="link-button" data-action="copyPath">`,
-      `${icon('copy')}${esc(t('ui.204'))}</button></section>`,
-      `${c.kind === 'uasset' ? unrealAssetPanel(c) : ready(c) !== 'ready' ? notice(t('ui.205'), c.note || t('ui.206'), 'link') : ''}`,
-      `${c.route === 'unreal-export' ? button(t('ui.484'), 'revealClipFile', 'folderOpen', 'full') : ''}`,
+      clipFacts(c),
+      clipNotices(c),
       `<div class="button-row">${button(t('ui.207'), 'toAvatar', 'bone', 'full')}${button(t('ui.208'), 'openPreview', 'expand', 'full')}`,
       `</div>${button(t('ui.181'), 'toExport', 'upload', 'primary full', !selected.size ? 'disabled' : '')}`,
     ].join('') : ''}`,
     `</aside>`,
+  ].join('');
+}
+// The preview page has no right column (the viewer takes the full width), so the same
+// clip information sits below the player controls instead; the large viewer replaces the thumbnail.
+function previewInfo(c) {
+  return [
+    `<section class="clip-info" aria-label="${esc(t('ui.193'))}">`,
+    `<div class="clip-info-head"><h2>${esc(t('ui.193'))}</h2>`,
+    `<div class="badges">${badge(typeLabel(c))}${badge(readyLabel(c), '', 'outline')}</div></div>`,
+    clipFacts(c),
+    `<div class="clip-info-notices">${clipNotices(c)}</div>`,
+    `<div class="clip-info-actions">${button(t('ui.207'), 'toAvatar', 'bone')}`,
+    `${button(t('ui.181'), 'toExport', 'upload', 'primary', !selected.size ? 'disabled' : '')}</div>`,
+    `</section>`,
   ].join('');
 }
 // Raw Unreal assets are converted to FBX by a headless Unreal Editor run.
@@ -1321,8 +1523,8 @@ function preview() {
     `<label><input type="checkbox" id="show-floor" ${play.floor ? 'checked' : ''}>`,
     `${esc(t('ui.221'))}</label><label><input type="checkbox" id="show-bones" ${showBones(p) ? 'checked' : ''}>`,
     `${esc(t('ui.222'))}</label><span class="muted">${esc(t('ui.223', { count: p?.frames?.length || 0 }))}${p?.fps ? formatNumber(p.fps) : '—'} FPS</span>`,
-    `</div><div class="footer-note">${esc(t('ui.224'))}`,
-    `</div><div class="action-footer">${button(t('ui.225'), 'toLibrary', 'back')}${button(t('ui.226'), 'toAvatar', 'bone')}${button(t('ui.088'), 'toExport', 'upload', 'primary', !selected.size ? 'disabled' : '')}`,
+    `</div>${previewInfo(c)}<div class="footer-note">${esc(t('ui.224'))}`,
+    `</div><div class="action-footer">${button(t('ui.225'), 'toLibrary', 'back')}`,
     `</div>`,
   ].join('');
 }
@@ -1417,7 +1619,7 @@ function unity() {
     `<div class="connection-art">${icon('monitor')}<span class="connector">`,
     `</span>${folderArt()}</div><h2>${esc(t('ui.267'))}`,
     `</h2><p>${esc(t('ui.268'))}</p><div class="form-grid">`,
-    `${pickerField(t('ui.269'), 'unity-editor', native.settings.unityEditor || '', 'pickFile', native.unityAuto?.state === 'connected' && native.unityAuto.path && native.unityAuto.path === native.settings.unityEditor ? t('ui.474') : '')}${pickerField(t('ui.468'), 'unreal-editor', native.settings.unreal_editor || '', 'pickFile')}`,
+    `${pickerField(t('ui.269'), 'unity-editor', native.settings.unityEditor || '', 'pickFile', autoDetectedHint(native.unityAuto, native.settings.unityEditor, 'ui.474'))}${pickerField(t('ui.468'), 'unreal-editor', native.settings.unreal_editor || '', 'pickFile', autoDetectedHint(native.unrealAuto, native.settings.unreal_editor, 'ui.520'))}`,
     `<p class="hint">${esc(t('ui.467'))}</p><div class="field">`,
     `<label for="unity-project">${esc(t('ui.270'))}</label>`,
     `<input id="unity-project" value="${esc(native.settings.unityProject || '')}" readonly placeholder="${esc(t('ui.271'))}">`,
@@ -1695,7 +1897,7 @@ function buildMarkup() {
       `</span><span>${esc(t('ui.404'))}</span>${button(t('ui.405'), 'cancelRead', 'close')}`,
       `</div>`,
     ].join('') : ''}`,
-    `${content}</div>${['library', 'preview'].includes(view.page) ? detail() : ''}`,
+    `${content}</div>${view.page === 'library' ? detail() : ''}`,
     `</div></main></div>`,
   ].join('');
 }
@@ -1849,6 +2051,7 @@ async function openFiles() {
   }
 }
 async function scan(paths) {
+  recordPageChange('analysis');
   view.page = 'analysis';
   view.error = '';
   native.scan = { state: 'scanning', path: paths.join(', ') };
@@ -2055,8 +2258,8 @@ function tick(now) { // "now" is the rAF timestamp; "t" stays the i18n lookup
   } else if (play.running) stopPlay();
   const h = previews.get(hoveredClip);
   if (hoveredClip && h?.status === 'ready') {
-    if (hoverTick) hoverTime += Math.min(0.1, (t - hoverTick) / 1000) * play.speed;
-    hoverTick = t;
+    if (hoverTick) hoverTime += Math.min(0.1, (now - hoverTick) / 1000) * play.speed;
+    hoverTick = now;
     hoverTime = h.duration > 0 ? hoverTime % h.duration : 0;
     for (const v of viewers) {
       const id = v.canvas.dataset.thumbnail || v.canvas.dataset.viewer;
@@ -2264,7 +2467,7 @@ async function action(name, el) {
       break;
     }
     case 'toLibrary':
-      go('library');
+      goOrBack('library');
       break;
     case 'toExport':
       if (selected.size) go('export');
@@ -2279,12 +2482,31 @@ async function action(name, el) {
       go('unity');
       break;
     case 'return':
-      go(returnPage);
+      goOrBack(returnPage);
       break;
-    case 'folder':
-      view.folder = el.dataset.value;
-      go('library');
+    case 'openSource': {
+      const source = el.dataset.source || '';
+      const root = source ? sourceRoots().find((r) => samePath(r.path, source)) : null;
+      view.source = root ? root.path : '';
+      view.folder = root ? el.dataset.value || '' : '';
+      // A Recent root that is not loaded yet is analysed first.
+      if (root && !root.clips.length) await action('openRecent', { dataset: { value: root.path } });
+      else go('library');
       break;
+    }
+    case 'toggleTree':
+      view.tree = { ...view.tree, [el.dataset.key]: el.dataset.open !== 'true' };
+      saveView();
+      render();
+      break;
+    case 'exportAll': {
+      const ids = exportableClips().map((c) => c.id);
+      if (!ids.length) break;
+      selected = new Set(ids);
+      await syncSelection();
+      go('export');
+      break;
+    }
     case 'check':
       setSelected(el.dataset.id);
       break;
@@ -2387,7 +2609,7 @@ async function action(name, el) {
       });
       native.settings.skeleton = draft.skeleton;
       toast(t('ui.431'));
-      go(returnPage);
+      goOrBack(returnPage);
       break;
     case 'resetMapping':
       native.skeleton = { ...native.skeleton, state: 'missing', valid: false };
@@ -2633,7 +2855,9 @@ function previewTarget(element) {
   const target = element?.closest?.('canvas[data-viewer], [data-clip]');
   return target?.dataset.viewer || target?.dataset.clip || '';
 }
-app.addEventListener('pointerover', (e) => hoverPreview(previewTarget(e.target)));
+app.addEventListener('pointerover', (e) => {
+  if (!marquee?.active) hoverPreview(previewTarget(e.target));
+});
 app.addEventListener('pointerout', (e) => {
   if (previewTarget(e.target) !== previewTarget(e.relatedTarget)) hoverPreview(previewTarget(e.relatedTarget));
 });
@@ -2836,6 +3060,51 @@ document.addEventListener('keydown', (e) => {
     items[Math.max(0, Math.min(items.length - 1, idx + delta))]?.focus();
   }
 });
+// Back / forward from the keyboard and the mouse side buttons.
+const TEXT_ENTRY_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'password', 'number']);
+function isTextEntry(el) {
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+  return el.tagName === 'INPUT' && TEXT_ENTRY_TYPES.has(el.type);
+}
+// WebView2 reports the mouse side buttons as button 3 (back, XButton1) and 4 (forward, XButton2);
+// the host needs no extra handling.
+const sideButtonDirection = { 3: 'back', 4: 'forward' };
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey) return;
+    let direction = '';
+    if (e.altKey && !e.shiftKey) {
+      if (e.key === 'ArrowLeft') direction = 'back';
+      else if (e.key === 'ArrowRight') direction = 'forward';
+    } else if (e.key === 'Backspace' && !e.altKey && !e.shiftKey && !isTextEntry(e.target)) {
+      direction = 'back';
+    }
+    if (!direction) return;
+    e.preventDefault();
+    navigateHistory(direction);
+  },
+  { capture: true },
+);
+window.addEventListener(
+  'mouseup',
+  (e) => {
+    const direction = sideButtonDirection[e.button];
+    if (!direction) return;
+    e.preventDefault();
+    navigateHistory(direction);
+  },
+  { capture: true },
+);
+// Keep the browser from acting on the click it synthesizes for the side buttons.
+window.addEventListener(
+  'auxclick',
+  (e) => {
+    if (sideButtonDirection[e.button]) e.preventDefault();
+  },
+  { capture: true },
+);
 let dragDepth = 0;
 document.addEventListener('dragenter', (e) => {
   if (e.dataTransfer?.types.includes('Files')) {
@@ -2861,6 +3130,7 @@ document.addEventListener('drop', (e) => {
   const files = Array.from(e.dataTransfer?.files || []);
   if (!files.length) return;
   if (hostTransport.additionalObjects) {
+    recordPageChange('analysis');
     view.page = 'analysis';
     native.scan = { state: 'scanning', path: files.map((f) => f.name).join(', ') };
     render();
@@ -2895,23 +3165,131 @@ async function checkForUpdate() {
     let skipped = null;
     try { skipped = localStorage.getItem('animbridge.skippedUpdate'); } catch { /* storage unavailable */ }
     if (skipped === r.latest || modal.open) return;
+    // Without the exact installer + checksum assets the release page is the fallback.
+    const primary = r.installable
+      ? { value: 'install', label: t('ui.500'), primary: true }
+      : { value: 'open', label: t('ui.471'), primary: true };
     const answer = await confirmDialog(t('ui.469'), t('ui.470', { latest: r.latest, current: r.current || appInfo.version }), [
-      { value: 'open', label: t('ui.471'), primary: true },
+      primary,
       { value: 'skip', label: t('ui.472') },
       { value: 'later', label: t('ui.473') },
     ]);
-    if (answer === 'open') {
-      try {
-        await request('openExternalLink', { link: 'latestRelease' });
-      } catch (e) {
-        toast(e.message || String(e));
-      }
+    if (answer === 'install') {
+      await startUpdate(r.latest);
+    } else if (answer === 'open') {
+      await openReleasePage();
     } else if (answer === 'skip') {
       try { localStorage.setItem('animbridge.skippedUpdate', r.latest); } catch { /* storage unavailable */ }
     }
   } catch {
     // Offline or rate limited: stay silent.
   }
+}
+async function openReleasePage() {
+  try {
+    await request('openExternalLink', { link: 'latestRelease' });
+  } catch (e) {
+    toast(e.message || String(e));
+  }
+}
+// In-app update. The host downloads the installer, checks it against the release's
+// SHA256SUMS.txt, starts it and closes the app; each step arrives as an
+// "updateProgress" event with a `state` field. `updateDialog` is set while the
+// progress dialog is open.
+let updateDialog = null;
+async function startUpdate(version) {
+  updateDialog = { version, state: 'downloading' };
+  showUpdateProgress({ state: 'downloading', received: 0, total: 0 });
+  try {
+    await request('installUpdate');
+  } catch (e) {
+    showUpdateProgress({ state: 'failed', message: e.message || String(e) });
+  }
+}
+function megabytes(bytes) {
+  return (Number(bytes || 0) / (1024 * 1024)).toFixed(1);
+}
+function updateProgressMarkup(data) {
+  const total = Number(data.total || 0);
+  const received = Number(data.received || 0);
+  const percent = total ? Math.min(100, Math.round((received / total) * 100)) : null;
+  const amount = total
+    ? t('ui.503', { received: megabytes(received), total: megabytes(total) })
+    : t('ui.504', { received: megabytes(received) });
+  const bar = percent === null
+    ? `<div class="progress-bar indeterminate"></div>`
+    : `<div class="progress-bar" data-update-bar style="width:${percent}%"></div>`;
+  return [
+    `<div class="update-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"${percent === null ? '' : ` aria-valuenow="${percent}"`}>`,
+    `<div class="progress-heading"><span class="small muted">${esc(amount)}</span>`,
+    `<strong>${percent === null ? '' : `${percent}%`}</strong></div>`,
+    `<div class="progress-track">${bar}</div></div>`,
+  ].join('');
+}
+function showUpdateProgress(data) {
+  if (!updateDialog) return; // events from an update this window did not start
+  const state = data.state || 'downloading';
+  if (state === 'cancelled') {
+    updateDialog = null;
+    if (modal.open) modal.close();
+    toast(t('ui.510'));
+    return;
+  }
+  // Downloading → only patch the bar so the Cancel button keeps focus.
+  if (state === 'downloading' && updateDialog.state === 'downloading' && modal.open && modal.querySelector('.update-progress')) {
+    modal.querySelector('.update-progress').outerHTML = updateProgressMarkup(data);
+    return;
+  }
+  updateDialog.state = state;
+  let title = t('ui.501');
+  let text = t('ui.502', { version: updateDialog.version });
+  let body = updateProgressMarkup(data);
+  let buttons = `<button class="btn" data-update="cancel">${esc(t('ui.506'))}</button>`;
+  if (state === 'verifying') {
+    text = t('ui.505');
+    body = updateProgressMarkup({});
+  } else if (state === 'installing') {
+    text = t('ui.507');
+    body = updateProgressMarkup({});
+    buttons = ''; // the app is closing; nothing left to cancel
+  } else if (state === 'failed') {
+    title = t('ui.508');
+    text = `${messageText(data, t('ui.026'))} ${t('ui.509')}`;
+    body = '';
+    buttons = [
+      `<button class="btn primary" data-update="open">${esc(t('ui.471'))}</button>`,
+      `<button class="btn" data-update="close">${esc(t('ui.511'))}</button>`,
+    ].join('');
+  }
+  if (modal.open) modal.close();
+  modal.innerHTML = [
+    `<h2 id="modal-title">${esc(title)}</h2><p>${esc(text)}</p>`,
+    body ? `<div class="modal-content">${body}</div>` : '',
+    `<div class="actions">${buttons}</div>`,
+  ].join('');
+  modal.onclick = (e) => {
+    const action = e.target.closest('[data-update]')?.dataset.update;
+    if (action === 'cancel') {
+      e.target.disabled = true;
+      request('cancelUpdate').catch(() => {});
+    } else if (action === 'open' || action === 'close') {
+      updateDialog = null;
+      modal.close();
+      if (action === 'open') openReleasePage();
+    }
+  };
+  // Escape behaves like Cancel while downloading and is ignored while installing.
+  modal.oncancel = (e) => {
+    e.preventDefault();
+    if (state === 'failed') {
+      updateDialog = null;
+      modal.close();
+    } else if (state !== 'installing') {
+      request('cancelUpdate').catch(() => {});
+    }
+  };
+  modal.showModal();
+  modal.querySelector('button')?.focus();
 }
 request('window', { command: 'getState' })
   .then(applyWindowState)
@@ -2922,6 +3300,257 @@ request('getState')
     view.error = e.message;
     render();
   });
+// SOURCE LIBRARY context menu. Right-click, the Menu key or Shift+F10 on a
+// root opens it; Escape, Tab or a click elsewhere closes it.
+let sourceMenu = null;
+function closeSourceMenu(restoreFocus = true) {
+  if (!sourceMenu) return;
+  const { element, path } = sourceMenu;
+  sourceMenu = null;
+  element.remove();
+  if (restoreFocus) app.querySelector(`[data-source-root="${CSS.escape(path)}"]`)?.focus();
+}
+function openSourceMenu(path, x, y) {
+  closeSourceMenu(false);
+  const element = document.createElement('div');
+  element.className = 'context-menu';
+  element.setAttribute('role', 'menu');
+  element.innerHTML = [
+    `<button role="menuitem" data-menu="reveal">${icon('folderOpen')}${esc(t('ui.541'))}</button>`,
+    `<button role="menuitem" class="danger" data-menu="remove">${icon('trash')}${esc(t('ui.540'))}</button>`,
+  ].join('');
+  // The menu lives outside #app so a state render cannot wipe it.
+  document.body.append(element);
+  const box = element.getBoundingClientRect();
+  element.style.left = `${Math.max(4, Math.min(x, innerWidth - box.width - 4))}px`;
+  element.style.top = `${Math.max(4, Math.min(y, innerHeight - box.height - 4))}px`;
+  sourceMenu = { element, path };
+  element.querySelector('button').focus();
+  element.addEventListener('keydown', (e) => {
+    const items = [...element.querySelectorAll('[role="menuitem"]')];
+    const index = items.indexOf(document.activeElement);
+    if (e.key === 'Escape' || e.key === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSourceMenu();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      items[(index + step + items.length) % items.length].focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1].focus();
+    }
+  });
+  element.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-menu]');
+    if (!item) return;
+    closeSourceMenu();
+    if (item.dataset.menu === 'reveal') request('openPath', { path }).catch(showError);
+    else removeLibrarySource(path).catch(showError);
+  });
+}
+async function removeLibrarySource(path) {
+  const root = sourceRoots().find((r) => samePath(r.path, path));
+  if (!root) return;
+  const answer = await confirmDialog(t('ui.542'), t('ui.543', { name: root.name, count: root.clips.length }), [
+    { label: t('ui.329'), value: 'cancel' },
+    { label: t('ui.540'), value: 'remove', primary: true },
+  ]);
+  if (answer !== 'remove') return;
+  const ids = new Set(root.clips.map((c) => c.id));
+  // The host drops the clips, the Recent row and the app-owned extraction;
+  // the user's original files are never touched.
+  await request('removeSource', { sourcePath: root.path });
+  for (const id of ids) {
+    selected.delete(id);
+    previews.delete(id);
+    metadata.delete(id);
+  }
+  if (ids.has(hoveredClip)) hoverPreview('');
+  if (ids.has(view.active)) view.active = '';
+  if (samePath(view.source, root.path)) {
+    view.source = '';
+    view.folder = '';
+  }
+  view.plan = null;
+  saveView();
+  render();
+  toast(t('ui.544', { name: root.name }));
+}
+app.addEventListener('contextmenu', (e) => {
+  const root = e.target.closest('[data-source-root]');
+  if (!root) return;
+  e.preventDefault();
+  openSourceMenu(root.dataset.sourceRoot, e.clientX, e.clientY);
+});
+document.addEventListener(
+  'keydown',
+  (e) => {
+    const root = e.target.closest?.('[data-source-root]');
+    if (!root || !(e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const box = root.getBoundingClientRect();
+    openSourceMenu(root.dataset.sourceRoot, box.left + 24, box.bottom);
+  },
+  { capture: true },
+);
+document.addEventListener(
+  'pointerdown',
+  (e) => {
+    if (sourceMenu && !sourceMenu.element.contains(e.target)) closeSourceMenu(false);
+  },
+  { capture: true },
+);
+window.addEventListener('blur', () => closeSourceMenu(false));
+window.addEventListener('resize', () => closeSourceMenu(false));
+
+// Marquee selection in the library: drag a rectangle over clip cards (grid)
+// or rows (list) to select every one it touches. Ctrl/Cmd or Shift keeps the
+// previous selection. A press that moves less than MARQUEE_THRESHOLD stays a
+// normal click, so card clicks, checkboxes and double clicks work as before.
+const MARQUEE_THRESHOLD = 5;
+const MARQUEE_EDGE = 40; // Distance from the page edge that starts auto-scroll.
+let marquee = null, suppressMarqueeClick = false;
+function marqueePage(target) {
+  if (view.page !== 'library' || modal.open) return null;
+  const page = target.closest?.('.page');
+  if (!page || !app.contains(page)) return null;
+  // Controls and the toolbars above the clips keep their own behavior.
+  const controls = 'button, a, input, select, textarea, label, summary, [data-action], ' +
+    '.toolbar, .filter-panel, .folder-grid, .subtoolbar, .selection-footer, .page-heading';
+  return target.closest(controls) ? null : page;
+}
+// Page-content coordinates stay correct while the page scrolls under the pointer.
+function contentY(page, clientY) {
+  return clientY - page.getBoundingClientRect().top + page.scrollTop;
+}
+function updateMarquee() {
+  const page = app.querySelector('.page');
+  if (!marquee || !page) return;
+  const frame = page.getBoundingClientRect();
+  const top = Math.min(marquee.startY, contentY(page, marquee.y));
+  const bottom = Math.max(marquee.startY, contentY(page, marquee.y));
+  const left = Math.min(marquee.startX, marquee.x);
+  const right = Math.max(marquee.startX, marquee.x);
+  // Draw only the part of the rectangle that is inside the scrolling page.
+  const drawTop = Math.max(frame.top, top - page.scrollTop + frame.top);
+  const drawBottom = Math.min(frame.bottom, bottom - page.scrollTop + frame.top);
+  Object.assign(marquee.box.style, {
+    left: `${left}px`,
+    top: `${drawTop}px`,
+    width: `${right - left}px`,
+    height: `${Math.max(0, drawBottom - drawTop)}px`,
+  });
+  const next = new Set(marquee.additive ? marquee.base : []);
+  for (const item of page.querySelectorAll('[data-clip]')) {
+    const box = item.getBoundingClientRect();
+    const itemTop = box.top - frame.top + page.scrollTop;
+    const touched = box.left < right && box.right > left && itemTop < bottom && itemTop + box.height > top;
+    if (touched) next.add(item.dataset.clip);
+  }
+  selected = next;
+  // Cheap in-place feedback; the full render happens when the drag ends.
+  for (const item of page.querySelectorAll('[data-clip]')) {
+    const on = selected.has(item.dataset.clip);
+    item.classList.toggle('checked', on);
+    const check = item.querySelector('.check');
+    if (check && check.getAttribute('aria-checked') !== String(on)) {
+      check.setAttribute('aria-checked', String(on));
+      check.innerHTML = on ? icon('check') : '';
+    }
+  }
+}
+function autoScrollMarquee() {
+  if (!marquee?.active) return;
+  const page = app.querySelector('.page');
+  if (page) {
+    const frame = page.getBoundingClientRect();
+    let step = 0;
+    if (marquee.y < frame.top + MARQUEE_EDGE) step = -Math.ceil((frame.top + MARQUEE_EDGE - marquee.y) / 4);
+    else if (marquee.y > frame.bottom - MARQUEE_EDGE) step = Math.ceil((marquee.y - frame.bottom + MARQUEE_EDGE) / 4);
+    if (step) {
+      page.scrollTop += step;
+      updateMarquee();
+    }
+  }
+  marquee.frame = requestAnimationFrame(autoScrollMarquee);
+}
+function finishMarquee(keep) {
+  const gesture = marquee;
+  marquee = null;
+  if (!gesture?.active) return;
+  cancelAnimationFrame(gesture.frame);
+  gesture.box.remove();
+  document.body.classList.remove('marquee-active');
+  if (document.body.hasPointerCapture(gesture.pointerId)) document.body.releasePointerCapture(gesture.pointerId);
+  if (!keep) selected = gesture.base;
+  // The browser still sends a click for this press; it must not open a card.
+  suppressMarqueeClick = true;
+  setTimeout(() => (suppressMarqueeClick = false), 0);
+  render();
+  if (keep) syncSelection();
+}
+document.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || marquee) return;
+  const page = marqueePage(e.target);
+  if (!page) return;
+  marquee = {
+    pointerId: e.pointerId,
+    startX: e.clientX,
+    startY: contentY(page, e.clientY),
+    x: e.clientX,
+    y: e.clientY,
+    additive: e.ctrlKey || e.metaKey || e.shiftKey,
+    base: new Set(selected),
+    active: false,
+  };
+});
+document.addEventListener('pointermove', (e) => {
+  if (!marquee || e.pointerId !== marquee.pointerId) return;
+  marquee.x = e.clientX;
+  marquee.y = e.clientY;
+  if (!marquee.active) {
+    const page = app.querySelector('.page');
+    const moved = Math.hypot(e.clientX - marquee.startX, contentY(page, e.clientY) - marquee.startY);
+    if (moved < MARQUEE_THRESHOLD) return;
+    marquee.active = true;
+    marquee.box = document.createElement('div');
+    marquee.box.className = 'marquee-box';
+    document.body.append(marquee.box);
+    document.body.classList.add('marquee-active');
+    document.body.setPointerCapture(e.pointerId);
+    window.getSelection()?.removeAllRanges();
+    hoverPreview('');
+    marquee.frame = requestAnimationFrame(autoScrollMarquee);
+  }
+  updateMarquee();
+});
+document.addEventListener('pointerup', (e) => {
+  if (marquee && e.pointerId === marquee.pointerId) finishMarquee(true);
+});
+document.addEventListener('pointercancel', () => finishMarquee(true));
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key !== 'Escape' || !marquee?.active) return;
+    e.preventDefault();
+    e.stopPropagation();
+    finishMarquee(false);
+  },
+  { capture: true },
+);
+document.addEventListener(
+  'click',
+  (e) => {
+    if (!suppressMarqueeClick) return;
+    suppressMarqueeClick = false;
+    e.preventDefault();
+    e.stopPropagation();
+  },
+  { capture: true },
+);
 // Read-only inspection surface for the opt-in local UI acceptance runner.
 window.animbridgeUI = {
   getState: () => ({ native, view, selected: [...selected], previewCount: previews.size }),

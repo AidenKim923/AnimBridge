@@ -89,7 +89,7 @@ Json capabilityFile(const fs::path& path, const fs::path& boundary) {
     if (fileIdentity(path) != identity || fileIdentity(canonical) != identity) throw std::runtime_error("Engine companion changed while checking its identity");
     return {{"path", utf8(canonical)}, {"sha256", hash}};
 }
-Json approveUnrealCompanions(PathGrantRegistry& grants, const fs::path& selected, bool deriveFromPicker) {
+Json approveUnrealCompanions(PathGrantRegistry& grants, const fs::path& selected, bool deriveFromPicker, GrantSource source = GrantSource::Picker) {
     const auto parentApproval = approvedEditorRecord(grants, selected, "unreal");
     auto engineDirectory = verifiedCanonicalPath(selected).parent_path();
     while (!engineDirectory.empty() && engineDirectory.filename() != "Engine") {
@@ -109,10 +109,11 @@ Json approveUnrealCompanions(PathGrantRegistry& grants, const fs::path& selected
 #endif
     auto canonicalCommand = verifiedCanonicalPath(command);
     if (!inside(canonicalCommand, engineDirectory / "Binaries")) throw std::runtime_error("Unreal command companion escaped its selected installation");
-    // Only a new native Manny selection can issue or renew these grants.
+    // Only a new native Manny selection (or the Epic-launcher auto-discovery, which passes
+    // GrantSource::AutoDiscovered) can issue or renew these grants.
     // Reusing a saved Editor must never silently renew replaced companions.
     auto commandApproval = deriveFromPicker
-        ? grants.issue(canonicalCommand, GrantPurpose::Editor, GrantSource::Picker, "unreal")
+        ? grants.issue(canonicalCommand, GrantPurpose::Editor, source, "unreal")
         : approvedEditorRecord(grants, canonicalCommand, "unreal");
     if (commandApproval.at("engineProbe").at("metadata") != metadata) throw std::runtime_error("Unreal command companion has a different version identity");
     auto commandCapability = capabilityFile(canonicalCommand, engineDirectory / "Binaries");
@@ -123,7 +124,7 @@ Json approveUnrealCompanions(PathGrantRegistry& grants, const fs::path& selected
         if (!inside(canonicalTemplate, engineRoot)) throw std::runtime_error("Unreal template escaped its selected installation");
         // The user's native Editor approval authorizes precisely these two
         // fixed data companions, never a general engine subtree read grant.
-        if (deriveFromPicker) grants.issue(canonicalTemplate, GrantPurpose::Read, GrantSource::Picker, "unreal");
+        if (deriveFromPicker) grants.issue(canonicalTemplate, GrantPurpose::Read, source, "unreal");
         else if (!grants.permits(canonicalTemplate, GrantPurpose::Read)) throw std::runtime_error("Unreal template approval expired; select the Manny Unreal Editor again or choose a model FBX");
         auto capability = capabilityFile(canonicalTemplate, engineRoot);
         templateCapabilities.push_back(capability);
@@ -150,6 +151,32 @@ fs::path discoverUnityEditor(const fs::path& hubRoot) {
     if (error || !fs::is_regular_file(resolved, error) || !inside(resolved, root)) return {};
     return resolved;
 }
+// Canonical UnrealEditor.exe of every launcher-known 5.x install that has both editor
+// executables, newest version first. The shell only supplies candidate folders; like the Unity
+// code, a junction or symlink that resolves outside its install folder rejects the candidate.
+// Whether the engine version is actually supported is decided later by the Editor grant probe.
+std::vector<fs::path> discoverUnrealEditors(std::vector<discovery::UnrealInstall> installs) {
+    std::vector<fs::path> editors;
+#ifdef _WIN32
+    discovery::sortNewestFirst(installs);
+    std::set<fs::path> seen;
+    for (const auto& install : installs) {
+        std::error_code error;
+        const auto root = fs::canonical(fromUtf8(install.location), error);
+        if (error || !fs::is_directory(root, error) || !seen.insert(root).second) continue;
+        const auto binaries = root / "Engine" / "Binaries" / "Win64";
+        const auto editor = fs::canonical(binaries / "UnrealEditor.exe", error);
+        if (error || !fs::is_regular_file(editor, error) || !inside(editor, root)) continue;
+        // The conversion runs the -Cmd variant, so an install without it is unusable.
+        const auto command = fs::canonical(binaries / "UnrealEditor-Cmd.exe", error);
+        if (error || !fs::is_regular_file(command, error) || !inside(command, root)) continue;
+        editors.push_back(editor);
+    }
+#else
+    (void)installs;
+#endif
+    return editors;
+}
 }
 
 fs::path defaultUnityHubEditorRoot() {
@@ -164,6 +191,56 @@ fs::path defaultUnityHubEditorRoot() {
 #endif
 }
 
+std::vector<discovery::UnrealInstall> defaultUnrealInstalls() {
+    std::vector<discovery::UnrealInstall> installs;
+#ifdef _WIN32
+    auto knownFolder = [](const KNOWNFOLDERID& id) {
+        PWSTR known = nullptr;
+        fs::path result;
+        if (SUCCEEDED(SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, nullptr, &known)) && known) result = known;
+        if (known) CoTaskMemFree(known);
+        return result;
+    };
+    // 1. The Epic launcher's own list also covers engines installed to a custom drive.
+    //    The same file is read by src/unityanimbridge/default_humanoid.py.
+    if (const auto programData = knownFolder(FOLDERID_ProgramData); !programData.empty()) {
+        const auto list = programData / L"Epic" / L"UnrealEngineLauncher" / L"LauncherInstalled.dat";
+        std::error_code error;
+        // A launcher list is a few KB; refuse anything absurd rather than parse it.
+        if (fs::is_regular_file(list, error) && fs::file_size(list, error) <= 4 * 1024 * 1024) {
+            std::ifstream file(list, std::ios::binary);
+            const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            installs = discovery::parseLauncherInstalled(text);
+        }
+    }
+    // 2. The default launcher location, for machines where the list is missing or outdated.
+    if (const auto programFiles = knownFolder(FOLDERID_ProgramFiles); !programFiles.empty()) {
+        std::error_code error;
+        for (fs::directory_iterator it(programFiles / L"Epic Games", error), end; !error && it != end; it.increment(error)) {
+            const auto version = discovery::unrealEngineVersion(utf8(it->path().filename()));
+            if (version && it->is_directory(error)) installs.push_back({version->first, version->second, utf8(it->path())});
+        }
+    }
+#endif
+    return installs;
+}
+
+std::string defaultInterfaceLanguage() {
+#ifdef _WIN32
+    std::string installerChoice;
+    try {
+        // Written next to the executable by the installer ([Code] in packaging/AnimBridge.iss).
+        std::ifstream file(runtimePaths().bundleRoot / "install-language.txt", std::ios::binary);
+        char buffer[64] = {};
+        file.read(buffer, sizeof(buffer) - 1);
+        installerChoice.assign(buffer, static_cast<std::size_t>(file.gcount()));
+    } catch (...) {}
+    return discovery::chooseDefaultLanguage(installerChoice, GetUserDefaultUILanguage());
+#else
+    return {};
+#endif
+}
+
 DesktopBridge::DesktopBridge(Sender send, Picker pick, SavePicker save, void*, const fs::path& dataRoot)
     : DesktopBridge(std::move(send), DesktopPlatformServices{
         [pick = std::move(pick)](const Json& payload, bool folder, DesktopPlatformServices::PickCompletion done) { try { done(pick(payload, folder), {}); } catch (const std::exception& e) { done({}, e.what()); } },
@@ -173,12 +250,19 @@ DesktopBridge::DesktopBridge(Sender send, DesktopPlatformServices services, cons
       context_(resolveRuntimeContext(dataRoot)), grants_(context_.cacheRoot), root_(context_.dataRoot), statePath_(root_ / "state-v2.json"), cache_(context_.cacheRoot) {
     auto sender = std::move(send_);
     send_ = [sender = std::move(sender)](const Json& value) { try { (void)value.dump(); sender(value); } catch (...) { try { sender({{"event", "error"}, {"data", {{"message", "NATIVE_COMPLETION_FAILED: invalid local data or disconnected UI"}}}}); } catch (...) {} } };
-    settings_ = {{"language", "en"}, {"theme", "dark"}, {"uiScale", 100}, {"python", utf8(runtimePaths().python)},
+    // A first run (no saved settings) follows the installer's language; a saved choice always wins
+    // because the settings loaded below overwrite this default.
+    std::string initialLanguage = "en";
+    if (services_.defaultLanguage) {
+        try { if (const auto code = services_.defaultLanguage(); supportedLanguage(code)) initialLanguage = code; } catch (...) {}
+    }
+    settings_ = {{"language", initialLanguage}, {"theme", "dark"}, {"uiScale", 100}, {"python", utf8(runtimePaths().python)},
         {"blender", utf8(runtimePaths().blender)}, {"skeleton", ""}, {"unityEditor", ""}, {"unreal_editor", ""}, {"unityProject", ""},
         {"outputRoot", utf8(context_.exportRoot)}, {"cacheRoot", utf8(cache_)}};
     packages_ = jobs_ = history_ = Json::array(); scan_ = {{"state", "idle"}, {"current", 0}, {"total", 0}, {"path", ""}};
     unity_ = {{"state", "disconnected"}, {"connected", false}};
     unityAuto_ = {{"state", services_.unityHubEditorRoot ? "searching" : "disabled"}, {"path", ""}};
+    unrealAuto_ = {{"state", services_.unrealInstalls ? "searching" : "disabled"}, {"path", ""}};
     skeleton_ = {{"state", "missing"}, {"valid", false}};
     auto defaultSettings = settings_;
     try {
@@ -287,10 +371,16 @@ DesktopBridge::DesktopBridge(Sender send, DesktopPlatformServices services, cons
         try { unityDiscoveryWorker_ = std::thread([this] { autoConnectUnity(); }); }
         catch (...) { unityAuto_["state"] = "none"; }
     }
+    if (services_.unrealInstalls) {
+        try { unrealDiscoveryWorker_ = std::thread([this] { autoConnectUnreal(); }); }
+        catch (...) { unrealAuto_["state"] = "none"; }
+    }
 }
 DesktopBridge::~DesktopBridge() {
     alive_->store(false); cancel();
     if (unityDiscoveryWorker_.joinable()) unityDiscoveryWorker_.join();
+    if (unrealDiscoveryWorker_.joinable()) unrealDiscoveryWorker_.join();
+    updateCancel_.store(true);  // stop an update download so the join below is prompt
     if (updateWorker_.joinable()) updateWorker_.join();
     { std::lock_guard lock(workMutex_); stopping_ = true; }
     readReady_.notify_all();
@@ -313,7 +403,7 @@ DesktopBridge::Json DesktopBridge::stateLocked() const {
         {"history", history_}, {"busy", busy_.load()}, {"readBusy", working() && !busy_.load()},
         {"readActive", readOutstanding_.load()}, {"readConcurrency", ReadConcurrency},
         {"retryAttemptId", lastPlan_ && std::any_of(lastResults_.begin(), lastResults_.end(), [](const Result& r) { return r.status == "error" || r.status == "blocked"; }) ? lastPlan_->attemptId : ""},
-        {"statePersistenceEnabled", persistAllowed_}, {"cacheLocationReadOnly", true}, {"scan", scan_}, {"unity", unity_}, {"unityAuto", unityAuto_}, {"skeleton", skeleton_},
+        {"statePersistenceEnabled", persistAllowed_}, {"cacheLocationReadOnly", true}, {"scan", scan_}, {"unity", unity_}, {"unityAuto", unityAuto_}, {"unrealAuto", unrealAuto_}, {"skeleton", skeleton_},
         {"defaultHumanoidCapability", {{"state", valueString(settings_, "unreal_editor").empty() ? "needs-unreal-editor" : "recheck-on-use"}, {"engineVersion", "5.8.2"}, {"readScope", "two-fixed-template-files"}}}};
 }
 DesktopBridge::Json DesktopBridge::state() const { std::lock_guard lock(mutex_); return stateLocked(); }
@@ -405,8 +495,121 @@ void DesktopBridge::autoConnectUnity() {
         try { finish("none"); } catch (...) {}
     }
 }
+// Connects the newest supported Unreal Editor known to the Epic launcher once per session when none
+// is set. Goes through the same Editor grant, version probe and companion approval as the native
+// picker, but marked auto-discovered. Never replaces a user choice.
+void DesktopBridge::autoConnectUnreal() {
+    auto finish = [this](const char* state, const std::string& path = "") {
+        { std::lock_guard lock(mutex_); unrealAuto_ = {{"state", state}, {"path", path}}; }
+        emitState();
+    };
+    try {
+        std::string stored; bool declined;
+        { std::lock_guard lock(mutex_); stored = valueString(settings_, "unreal_editor"); declined = settings_.value("unrealEditorAutoCleared", false); }
+        if (declined) { finish("declined"); return; }
+        auto candidates = discoverUnrealEditors(services_.unrealInstalls());
+        if (!stored.empty()) {
+            const auto storedPath = fromUtf8(stored);
+            if (grants_.permits(storedPath, GrantPurpose::Editor)) {
+                // Keep showing the note for an editor this feature connected earlier.
+                bool automatic = false;
+                for (const auto& record : grants_.records()) if (record.value("purpose", "") == "editor" && record.value("source", "") == "auto-discovered" && sameFile(fromUtf8(record.value("path", "")), storedPath)) automatic = true;
+                finish(automatic ? "connected" : "none", automatic ? stored : "");
+                return;
+            }
+            // A stale approval is renewed only for the exact auto-discovered location.
+            std::error_code same;
+            if (!fs::exists(storedPath, same)) { finish("none"); return; }
+            std::erase_if(candidates, [&](const fs::path& candidate) { return !sameFile(storedPath, candidate); });
+        }
+        // Newest first; an install the integration does not support (the probe rejects it)
+        // or one with missing companions is skipped in favor of the next one.
+        for (const auto& candidate : candidates) {
+            std::string approvedPath;
+            try {
+                approvedPath = grants_.issue(candidate, GrantPurpose::Editor, GrantSource::AutoDiscovered, "unreal").at("path").get<std::string>();
+                approveUnrealCompanions(grants_, fromUtf8(approvedPath), true, GrantSource::AutoDiscovered);
+            } catch (const std::exception&) { continue; }
+            bool connected = false;
+            {
+                std::lock_guard lock(mutex_);
+                connected = valueString(settings_, "unreal_editor") == stored;  // otherwise the user chose an editor meanwhile
+                if (connected) { settings_["unreal_editor"] = approvedPath; settings_.erase("unreal_editorApproval"); }
+                unrealAuto_ = {{"state", connected ? "connected" : "none"}, {"path", connected ? approvedPath : ""}};
+            }
+            if (connected && persistAllowed_) { try { persist(); } catch (...) {} }
+            emitState();
+            return;
+        }
+        finish("none");
+    } catch (const std::exception&) {
+        try { finish("none"); } catch (...) {}
+    }
+}
 void DesktopBridge::reply(const Json& id, const Json& result) { send_({{"id", id}, {"ok", true}, {"result", result}}); }
 void DesktopBridge::error(const Json& id, const std::string& code, const std::exception& message) { auto data = messageData(message); data["code"] = code; send_({{"id", id}, {"ok", false}, {"error", data}}); }
+void DesktopBridge::emitUpdate(Json data) { send_({{"event", "updateProgress"}, {"data", std::move(data)}}); }
+void DesktopBridge::installUpdate(const std::string& version, const std::string& installerUrl, const std::string& checksumsUrl, std::uint64_t installerSize) {
+    constexpr std::uint64_t MaxInstallerBytes = 2ull * 1024 * 1024 * 1024;
+    constexpr std::uint64_t MaxChecksumsBytes = 1024 * 1024;
+    const auto installerName = update::installerAssetName(version);
+    const auto folder = cache_ / "updates";
+    const auto sumsPath = folder / "SHA256SUMS.txt";
+    const auto partialPath = folder / (installerName + ".partial");
+    const auto installerPath = folder / installerName;
+    auto discard = [&] { std::error_code ignored; fs::remove(partialPath, ignored); fs::remove(installerPath, ignored); };
+    try {
+        // Re-check here as well: the URLs were validated when parsed, but this is the
+        // last point before bytes are fetched.
+        if (!update::isAllowedDownloadUrl(installerUrl) || !update::isAllowedDownloadUrl(checksumsUrl)) throw UiError("native.updateUrlRejected", "The update download address is not a trusted GitHub release address.");
+        std::error_code ignored;
+        fs::remove_all(folder, ignored);  // leftovers from an earlier attempt are never reused
+        fs::create_directories(folder);
+
+        // 1. The checksum list first, so a release without one fails before the large download.
+        emitUpdate({{"state", "downloading"}, {"received", 0}, {"total", installerSize}});
+        const auto keepGoing = [this](std::uint64_t, std::uint64_t) { return !updateCancel_.load(); };
+        if (!services_.download(checksumsUrl, sumsPath, MaxChecksumsBytes, keepGoing) || updateCancel_.load()) { discard(); emitUpdate({{"state", "cancelled"}}); return; }
+        std::ifstream sumsFile(sumsPath, std::ios::binary);
+        const std::string sums{std::istreambuf_iterator<char>(sumsFile), std::istreambuf_iterator<char>()};
+        sumsFile.close();
+        const auto expected = update::checksumFor(sums, installerName);
+        if (!expected) throw UiError("native.updateChecksumMissing", "The release has no checksum for the installer, so it was not downloaded.");
+
+        // 2. The installer, with progress events throttled to whole-percent (or 1 MB) steps.
+        std::uint64_t lastReported = 0; int lastPercent = -1;
+        const auto progress = [&](std::uint64_t received, std::uint64_t total) {
+            if (updateCancel_.load()) return false;
+            if (total == 0) total = installerSize;
+            const int percent = total ? static_cast<int>(std::min<std::uint64_t>(100, received * 100 / total)) : -1;
+            if (percent != lastPercent || (total == 0 && received - lastReported >= 1024 * 1024)) {
+                lastPercent = percent; lastReported = received;
+                emitUpdate({{"state", "downloading"}, {"received", received}, {"total", total}});
+            }
+            return true;
+        };
+        if (!services_.download(installerUrl, partialPath, MaxInstallerBytes, progress) || updateCancel_.load()) { discard(); emitUpdate({{"state", "cancelled"}}); return; }
+
+        // 3. Verify before the file even gets its runnable name.
+        emitUpdate({{"state", "verifying"}});
+        if (installerSize && fs::file_size(partialPath) != installerSize) throw UiError("native.updateChecksumMismatch", "The downloaded installer did not match the published checksum, so it was deleted.");
+        if (fileSha256(partialPath) != *expected) throw UiError("native.updateChecksumMismatch", "The downloaded installer did not match the published checksum, so it was deleted.");
+        fs::rename(partialPath, installerPath);
+
+        // 4. Launch, then close so the installer can replace the app files. A job started
+        // during the download must finish first; the installer would otherwise close it.
+        if (updateCancel_.load()) { discard(); emitUpdate({{"state", "cancelled"}}); return; }
+        if (busy()) throw UiError("native.updateBusy", "Finish or cancel the running job, then try updating again.");
+        // /RELAUNCH=1 lets the installer start AnimBridge again after a silent update (see AnimBridge.iss).
+        services_.launchInstaller(installerPath, {"/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/RELAUNCH=1"});
+        emitUpdate({{"state", "installing"}, {"version", version}});
+        services_.requestExit();
+    } catch (const std::exception& e) {
+        discard();
+        auto data = messageData(e); data["state"] = "failed";
+        emitUpdate(data);
+    }
+}
 void DesktopBridge::background(const Json& id, std::function<Json()> task, bool replyNow, Json accepted, bool blocksWorkspace) {
     {
         std::lock_guard lock(workMutex_);
@@ -540,6 +743,47 @@ DesktopBridge::Json DesktopBridge::scan(const std::vector<fs::path>& paths) {
     }
     { std::lock_guard lock(mutex_); scan_["state"] = cancel_->load() ? "cancelled" : "complete"; }
     return {{"accepted", true}, {"count", next.clips.size()}};
+}
+DesktopBridge::Json DesktopBridge::removeSource(const fs::path& path, bool releaseCache) {
+    // A source that was moved or deleted can still be removed, so fall back
+    // to comparing spellings when the file system cannot resolve it.
+    auto samePath = [](const fs::path& a, const fs::path& b) {
+        std::error_code error;
+        if (fs::equivalent(a, b, error)) return true;
+        return a.lexically_normal() == b.lexically_normal();
+    };
+    std::vector<fs::path> releasedRoots, protectedPaths;
+    std::size_t removedClips = 0;
+    {
+        std::lock_guard lock(mutex_);
+        auto removed = session_.removeSource(path);
+        const auto before = packages_.size();
+        Json kept = Json::array();
+        for (const auto& row : packages_) if (!samePath(fromUtf8(row.value("path", "")), path)) kept.push_back(row);
+        packages_ = kept;
+        if (!removed.found && kept.size() == before) throw UiError("native.sourceRemoveMissing", "This source is no longer in the library.");
+        for (const auto& clipId : removed.clipIds) savedSelection_.erase(clipId);
+        // A reviewed plan may name removed clips; make the user plan again.
+        if (!removed.clipIds.empty()) pendingPlan_.reset();
+        removedClips = removed.clipIds.size();
+        // Only whole package-* extraction folders inside the app cache qualify.
+        for (const auto& root : removed.extractedRoots) {
+            auto folder = root.parent_path();
+            if (inside(folder, cache_ / "packages") && folder.filename().wstring().starts_with(L"package-")) releasedRoots.push_back(folder);
+        }
+        // Same protection as clearCache: never remove what is still in use.
+        for (const auto& clip : session_.clips) if (inside(clip.source, cache_)) protectedPaths.push_back(clip.source);
+        for (const auto& root : session_.extractedRoots) if (inside(root, cache_)) protectedPaths.push_back(root);
+        if (lastPlan_) for (const auto& job : lastPlan_->jobs) if (inside(job.clip.source, cache_)) protectedPaths.push_back(job.clip.source);
+    }
+    std::uintmax_t removedFiles = 0;
+    if (releaseCache && !releasedRoots.empty() && fileIdentity(cache_) == cacheIdentity_ && !fs::is_symlink(cache_)) {
+        for (const auto& folder : releasedRoots) {
+            try { removedFiles += removeOwnedCache(folder, cache_, protectedPaths); }
+            catch (const std::exception&) { /* A locked cache file is cleaned later by Clear cache. */ }
+        }
+    }
+    return {{"removed", true}, {"clips", removedClips}, {"cacheEntries", removedFiles}};
 }
 void DesktopBridge::ingest(const std::vector<fs::path>& paths, GrantSource source) {
     if (paths.empty()) return;
@@ -860,7 +1104,18 @@ void DesktopBridge::handle(const Json& request, const std::vector<fs::path>& dro
                             const bool newer = update::isNewer(release->version, current);
                             result["latest"] = release->version; result["name"] = release->name; result["prerelease"] = release->prerelease;
                             result["available"] = newer;
-                            if (newer) { std::lock_guard lock(mutex_); latestReleaseTag_ = release->tag; }
+                            // In-app install needs the exact installer + checksum assets and a shell
+                            // that can download and launch; otherwise the UI offers the release page.
+                            const bool installable = newer && release->assets && services_.download && services_.launchInstaller && services_.requestExit;
+                            result["installable"] = installable;
+                            if (newer) {
+                                std::lock_guard lock(mutex_);
+                                latestReleaseTag_ = release->tag;
+                                pendingUpdateVersion_ = installable ? release->version : std::string();
+                                pendingInstallerUrl_ = installable ? release->assets->installerUrl : std::string();
+                                pendingChecksumsUrl_ = installable ? release->assets->checksumsUrl : std::string();
+                                pendingInstallerSize_ = installable ? release->assets->installerSize : 0;
+                            }
                         }
                         updateRunning_.store(false);
                         reply(id, result);
@@ -870,6 +1125,32 @@ void DesktopBridge::handle(const Json& request, const std::vector<fs::path>& dro
                     }
                 });
             } catch (...) { updateRunning_.store(false); throw; }
+        }
+        else if (action == "installUpdate") {
+            // The UI only names the action; the version and URLs come from the last check.
+            std::string version, installerUrl, checksumsUrl; std::uint64_t installerSize = 0;
+            {
+                std::lock_guard lock(mutex_);
+                version = pendingUpdateVersion_; installerUrl = pendingInstallerUrl_;
+                checksumsUrl = pendingChecksumsUrl_; installerSize = pendingInstallerSize_;
+            }
+            if (version.empty() || !update::isNewer(version, app::Version)) throw UiError("native.updateNotReady", "No installable update was found. Check for updates again.");
+            if (busy()) throw UiError("native.updateBusy", "Finish or cancel the running job, then try updating again.");
+            if (updateRunning_.exchange(true)) throw UiError("native.updateRunning", "An update is already in progress.");
+            if (updateWorker_.joinable()) updateWorker_.join();
+            updateCancel_.store(false);
+            try {
+                updateWorker_ = std::thread([this, version, installerUrl, checksumsUrl, installerSize] {
+                    installUpdate(version, installerUrl, checksumsUrl, installerSize);
+                    updateRunning_.store(false);
+                });
+            } catch (...) { updateRunning_.store(false); throw; }
+            // Progress, failure and completion arrive as "updateProgress" events.
+            reply(id, {{"started", true}, {"version", version}});
+        }
+        else if (action == "cancelUpdate") {
+            updateCancel_.store(true);
+            reply(id, {{"cancelling", updateRunning_.load()}});
         }
         else if (action == "openExternalLink") {
             const auto link = payload.value("link", "");
@@ -943,6 +1224,21 @@ void DesktopBridge::handle(const Json& request, const std::vector<fs::path>& dro
             { std::lock_guard lock(mutex_); savedSelection_ = ids; for (auto& clip : session_.clips) clip.selected = ids.contains(clip.id); }
             persist();
             reply(id, {{"selected", ids.size()}}); emitState();
+        }
+        else if (action == "removeSource") {
+            // Forget one SOURCE LIBRARY entry: its clips, its Recent row and the
+            // app-owned extraction made for it. The user's original files stay.
+            // "sourcePath" is not a grant-checked field: removing only forgets
+            // state, so a source whose approval expired can still be removed.
+            auto path = fromUtf8(valueString(payload, "sourcePath"));
+            if (path.empty()) throw UiError("native.sourceRemoveMissing", "Choose a source to remove from the library.");
+            if (busy_) { error(id, "BUSY", UiError("native.busy", "Wait for the current job to finish before trying again.")); return; }
+            if (!working()) { background(id, [this, path] { return removeSource(path, true); }); return; }
+            // Thumbnail previews run almost all the time. Removal must not wait
+            // for them, so forget the source now and leave its extraction in
+            // place (a running preview may still read it); Clear cache frees it later.
+            auto result = removeSource(path, false);
+            persist(); reply(id, result); emitState();
         }
         else if (action == "plan" || action == "start") {
             // Planning hashes sources too, so it belongs on the same background worker.
@@ -1053,6 +1349,8 @@ void DesktopBridge::handle(const Json& request, const std::vector<fs::path>& dro
                   // Clearing the editor is a decision: do not auto-connect it again.
                   if (incoming["unityEditor"] == "" && !valueString(settings_, "unityEditor").empty()) { settings_["unityEditorAutoCleared"] = true; unityAuto_ = {{"state", "declined"}, {"path", ""}}; }
               }
+              // Same for Unreal Editor: clearing it must not bring the auto-detected one back.
+              if (incoming.contains("unreal_editor") && incoming["unreal_editor"] == "" && !valueString(settings_, "unreal_editor").empty()) { settings_["unrealEditorAutoCleared"] = true; unrealAuto_ = {{"state", "declined"}, {"path", ""}}; }
               settings_.update(incoming); settings_["cacheRoot"] = utf8(cache_);
             }
             persist(); reply(id, state()["settings"]); emitState();

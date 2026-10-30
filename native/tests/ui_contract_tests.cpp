@@ -94,6 +94,11 @@ int main(int argc, char** argv) {
             auto invalid = request; invalid["epoch"] = next["epoch"]; invalid["capability"] = next["capability"]; invalid["id"] = action; invalid["action"] = action;
             check(!session.accept(invalid, "animbridge://app/", true, true), "Unregistered bridge action accepted");
         }
+        {
+            // The SOURCE LIBRARY context menu reaches the host through this action.
+            auto remove = request; remove["epoch"] = next["epoch"]; remove["capability"] = next["capability"]; remove["id"] = "remove-source"; remove["action"] = "removeSource";
+            check(session.accept(remove, "animbridge://app/", true, true), "Registered removeSource action rejected");
+        }
         auto ui = root / "ui"; write(ui / "index.html", "trusted"); write(ui / "app.js", "trusted-js"); write(ui / "secret.txt", "private");
         check(readUiResource(ui, "animbridge://app/index.html", "animbridge://app/").has_value(), "Registered UI resource missing");
         for (auto path : {"secret.txt", "../secret.txt", "%2e%2e/secret.txt", "index.html?x=1", "index.html#fragment", "%00index.html", "file:///etc/passwd", "app.js/../index.html", "%ZZ"})

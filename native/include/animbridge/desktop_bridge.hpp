@@ -35,6 +35,7 @@ private:
     void emitState();
     void persist();
     void autoConnectUnity();
+    void autoConnectUnreal();
     void compactAttemptsLocked();
     void reply(const Json& id, const Json& result);
     void error(const Json& id, const std::string& code, const std::exception& message);
@@ -42,6 +43,8 @@ private:
     void backgroundRead(const Json& id, const std::string& operation, Json payload);
     void readLoop();
     Json scan(const std::vector<fs::path>& paths);
+    // Forgets a SOURCE LIBRARY root; releaseCache also deletes its unused extraction.
+    Json removeSource(const fs::path& path, bool releaseCache);
     Json helper(const std::string& operation, Json payload);
     // Raw .uasset -> FBX through a headless Unreal Editor run by the worker.
     Json prepareUnrealConversion(const Json& payload) const;
@@ -66,7 +69,7 @@ private:
     std::mutex persistMutex_;
     std::mutex stateEmitMutex_;
     Session session_;
-    Json settings_, packages_, jobs_, history_, scan_, unity_, skeleton_, unityAuto_;
+    Json settings_, packages_, jobs_, history_, scan_, unity_, skeleton_, unityAuto_, unrealAuto_;
     Json warningMessages_ = Json::array();
     fs::path root_, statePath_, cache_;
     std::string cacheIdentity_;
@@ -92,7 +95,16 @@ private:
     // Update checks never occupy the workspace worker; one dedicated thread runs at a time.
     std::thread updateWorker_;
     std::thread unityDiscoveryWorker_;
+    std::thread unrealDiscoveryWorker_;
     std::atomic_bool updateRunning_{false};
+    std::atomic_bool updateCancel_{false};
     std::string latestReleaseTag_;  // guarded by mutex_
+    // Version and assets of the newer release found by the last check; guarded by mutex_.
+    std::string pendingUpdateVersion_;
+    std::string pendingInstallerUrl_, pendingChecksumsUrl_;
+    std::uint64_t pendingInstallerSize_ = 0;
+    // Runs on updateWorker_: download, verify, launch the installer, then close the app.
+    void installUpdate(const std::string& version, const std::string& installerUrl, const std::string& checksumsUrl, std::uint64_t installerSize);
+    void emitUpdate(Json data);
 };
 }

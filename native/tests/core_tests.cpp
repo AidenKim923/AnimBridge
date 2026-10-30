@@ -221,6 +221,23 @@ int main(int count, char** args) {
             Session repaired; repaired.ingest({source}, reopenCache);
             check(repaired.extractedRoots[0] != changed.extractedRoots[0] && fs::is_regular_file(repaired.clips[0].source), "an extraction missing an asset is extracted again");
         });
+        test("removing a source drops only its clips and releases only its extraction", [&] {
+            auto removeCache = root / "remove-cache", loose = root / "remove-loose";
+            auto source = root / "remove.unitypackage";
+            package(source, {{guid + "/pathname", "Assets/Hero/Walk.anim"}, {guid + "/asset", anim}});
+            write(loose / "Idle.fbx", "loose model bytes");
+            Session session; session.ingest({source, loose}, removeCache);
+            check(session.clips.size() == 2 && session.packages.size() == 2 && session.extractedRoots.size() == 1, "two sources loaded");
+            auto packageRoot = session.extractedRoots[0];
+            auto removed = session.removeSource(source);
+            check(removed.found && removed.clipIds.size() == 1 && removed.extractedRoots.size() == 1 && removed.extractedRoots[0] == packageRoot, "package clips and extraction reported");
+            check(session.clips.size() == 1 && session.clips[0].name == "Idle" && session.packages.size() == 1 && session.extractedRoots.empty(), "only the package source was forgotten");
+            check(fs::is_regular_file(source) && fs::is_regular_file(loose / "Idle.fbx") && fs::exists(packageRoot), "removal never deletes files itself");
+            auto again = session.removeSource(source);
+            check(!again.found && again.clipIds.empty(), "removing twice is a harmless no-op");
+            auto folder = session.removeSource(loose);
+            check(folder.found && folder.extractedRoots.empty() && session.clips.empty() && fs::is_regular_file(loose / "Idle.fbx"), "a folder source keeps its original files");
+        });
         test("package change after extraction rolls back the owned extraction directory", [&] {
             auto source = root / "changing-package.unitypackage", changingCache = root / "changing-cache";
             std::vector<TarEntry> entries;

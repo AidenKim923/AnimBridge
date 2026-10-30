@@ -45,7 +45,7 @@ bool WebViewSession::accept(const Json& request, const std::string& engineOrigin
     if (request.value("protocolVersion", 0) != 1 || request.value("epoch", "") != epoch_ || request.value("capability", "") != capability_) return false;
     if (!request.contains("id") || !request["id"].is_string() || request["id"].get_ref<const std::string&>().size() > 160 || request["id"].get_ref<const std::string&>().empty()) return false;
     if (!request.contains("action") || !request["action"].is_string() || !request.value("payload", Json::object()).is_object() || request.dump().size() > 1024 * 1024) return false;
-    static const std::set<std::string> actions = {"getState", "getAppInfo", "openExternalLink", "checkForUpdate", "chooseFiles", "chooseFolder", "scan", "drop", "select", "plan", "start", "cancel", "retryFailed", "inspect", "preview", "validateSkeleton", "connectUnity", "saveSettings", "openPath", "copyText", "saveReport", "clearCache", "convertUnrealAsset", "window"};
+    static const std::set<std::string> actions = {"getState", "getAppInfo", "openExternalLink", "checkForUpdate", "installUpdate", "cancelUpdate", "chooseFiles", "chooseFolder", "scan", "drop", "select", "removeSource", "plan", "start", "cancel", "retryFailed", "inspect", "preview", "validateSkeleton", "connectUnity", "saveSettings", "openPath", "copyText", "saveReport", "clearCache", "convertUnrealAsset", "window"};
     if (!actions.contains(request["action"].get<std::string>()) || seenIds_.size() >= 100000) return false;
     return seenIds_.insert(request["id"].get<std::string>()).second;
     } catch (...) { return false; }

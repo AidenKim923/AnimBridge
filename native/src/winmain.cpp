@@ -3,6 +3,7 @@
 #include "animbridge/ui_message.hpp"
 #include "animbridge/ui_resources.hpp"
 #include "animbridge/instance_lock.hpp"
+#include "animbridge/update_check.hpp"
 #include "resource.h"
 #include <windows.h>
 #include <windowsx.h>
@@ -510,10 +511,117 @@ std::string httpsGet(const std::string& url) {
     }
     return body;
 }
+// Streams an update download to disk. Redirects are followed by hand (at most 5) so that
+// every hop can be checked against update::isAllowedDownloadUrl; WinHTTP's automatic
+// redirects would accept any HTTPS host. Returns false when progress() asked to cancel.
+bool httpsDownload(const std::string& url, const fs::path& destination, std::uint64_t maxBytes, const DesktopPlatformServices::DownloadProgress& progress) {
+    struct Handle {
+        HINTERNET value = nullptr;
+        ~Handle() { if (value) WinHttpCloseHandle(value); }
+    };
+    const auto agent = fromUtf8(std::string("AnimBridge-Update/") + std::string(animbridge::app::Version)).wstring();
+    Handle session;
+    session.value = WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session.value) throw std::runtime_error("Could not start the network session");
+    WinHttpSetTimeouts(session.value, 10000, 10000, 30000, 30000);
+    DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | 0x00002000 /* TLS 1.3 where available */;
+    WinHttpSetOption(session.value, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));
+
+    std::string current = url;
+    for (int hop = 0; hop <= 5; ++hop) {
+        if (!update::isAllowedDownloadUrl(current)) throw UiError("native.updateUrlRejected", "The update download address is not a trusted GitHub release address.");
+        const auto wideUrl = fromUtf8(current).wstring();
+        URL_COMPONENTS parts{}; parts.dwStructSize = sizeof(parts);
+        parts.dwSchemeLength = parts.dwHostNameLength = parts.dwUrlPathLength = parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+        if (!WinHttpCrackUrl(wideUrl.c_str(), static_cast<DWORD>(wideUrl.size()), 0, &parts) || parts.nScheme != INTERNET_SCHEME_HTTPS || !parts.lpszHostName) throw std::runtime_error("Update download requires an HTTPS URL");
+        const std::wstring host(parts.lpszHostName, parts.dwHostNameLength);
+        const std::wstring path = std::wstring(parts.lpszUrlPath, parts.dwUrlPathLength) + std::wstring(parts.lpszExtraInfo ? parts.lpszExtraInfo : L"", parts.lpszExtraInfo ? parts.dwExtraInfoLength : 0);
+        Handle connection, request;
+        connection.value = WinHttpConnect(session.value, host.c_str(), parts.nPort, 0);
+        if (!connection.value) throw std::runtime_error("Could not connect to the update server");
+        request.value = WinHttpOpenRequest(connection.value, L"GET", path.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+        if (!request.value) throw std::runtime_error("Could not create the update request");
+        DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+        WinHttpSetOption(request.value, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
+        if (!WinHttpSendRequest(request.value, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) || !WinHttpReceiveResponse(request.value, nullptr)) throw std::runtime_error("The update server did not respond");
+        DWORD status = 0, size = sizeof(status);
+        if (!WinHttpQueryHeaders(request.value, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX)) throw std::runtime_error("The update server sent no status");
+        if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+            // Only absolute Location values are accepted; the loop re-checks the host.
+            DWORD bytes = 0;
+            WinHttpQueryHeaders(request.value, WINHTTP_QUERY_LOCATION, WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER, &bytes, WINHTTP_NO_HEADER_INDEX);
+            if (bytes == 0 || bytes > 16384) throw std::runtime_error("The update server sent an invalid redirect");
+            std::wstring location(bytes / sizeof(wchar_t), L'\0');
+            if (!WinHttpQueryHeaders(request.value, WINHTTP_QUERY_LOCATION, WINHTTP_HEADER_NAME_BY_INDEX, location.data(), &bytes, WINHTTP_NO_HEADER_INDEX)) throw std::runtime_error("The update server sent an invalid redirect");
+            location.resize(bytes / sizeof(wchar_t));
+            current = utf8(fs::path(location));
+            continue;
+        }
+        if (status != 200) throw std::runtime_error("The update server returned HTTP " + std::to_string(status));
+
+        std::uint64_t total = 0;
+        wchar_t lengthText[32] = {};
+        DWORD lengthSize = sizeof(lengthText);
+        if (WinHttpQueryHeaders(request.value, WINHTTP_QUERY_CONTENT_LENGTH, WINHTTP_HEADER_NAME_BY_INDEX, lengthText, &lengthSize, WINHTTP_NO_HEADER_INDEX)) total = _wcstoui64(lengthText, nullptr, 10);
+        if (total > maxBytes) throw std::runtime_error("The update download is too large");
+
+        std::ofstream out(destination, std::ios::binary | std::ios::trunc);
+        if (!out) throw std::runtime_error("Could not create the update file");
+        std::vector<char> buffer(256 * 1024);
+        std::uint64_t received = 0;
+        if (progress && !progress(0, total)) return false;
+        for (;;) {
+            DWORD read = 0;
+            if (!WinHttpReadData(request.value, buffer.data(), static_cast<DWORD>(buffer.size()), &read)) throw std::runtime_error("The update download was interrupted");
+            if (read == 0) break;
+            received += read;
+            if (received > maxBytes) throw std::runtime_error("The update download is too large");
+            out.write(buffer.data(), read);
+            if (!out) throw std::runtime_error("Could not write the update file");
+            if (progress && !progress(received, total)) return false;
+        }
+        out.close();
+        if (!out) throw std::runtime_error("Could not write the update file");
+        if (total && received != total) throw std::runtime_error("The update download was incomplete");
+        return true;
+    }
+    throw std::runtime_error("The update server redirected too many times");
+}
+// Starts the verified installer as a normal, visible process. It is not run on any hidden
+// desktop: if Windows ever needs to ask for elevation, the prompt must reach the user.
+void launchInstaller(const fs::path& installer, const std::vector<std::string>& arguments) {
+    std::wstring parameters;
+    for (const auto& argument : arguments) {
+        if (!parameters.empty()) parameters += L' ';
+        parameters += fromUtf8(argument).wstring();  // fixed switches without spaces; no quoting needed
+    }
+    const auto file = installer.wstring();
+    const auto folder = installer.parent_path().wstring();
+    SHELLEXECUTEINFOW info{};
+    info.cbSize = sizeof(info);
+    info.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
+    info.hwnd = window;
+    info.lpVerb = L"open";
+    info.lpFile = file.c_str();
+    info.lpParameters = parameters.c_str();
+    info.lpDirectory = folder.c_str();
+    info.nShow = SW_SHOWNORMAL;
+    // ShellExecuteEx expects COM on the calling thread; this runs on the update worker.
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    const BOOL started = ShellExecuteExW(&info);
+    if (SUCCEEDED(com)) CoUninitialize();
+    if (!started) throw UiError("native.updateLaunchFailed", "Could not start the update installer.");
+}
 DesktopPlatformServices nativeServices() {
     DesktopPlatformServices services;
     services.httpGet = httpsGet;
+    services.download = httpsDownload;
+    services.launchInstaller = launchInstaller;
+    // WM_CLOSE goes through the normal close path, which waits for background reads.
+    services.requestExit = [] { if (window) PostMessageW(window, WM_CLOSE, 0, 0); };
     services.unityHubEditorRoot = defaultUnityHubEditorRoot;
+    services.unrealInstalls = defaultUnrealInstalls;
+    services.defaultLanguage = defaultInterfaceLanguage;
     // The pickers run on the UI thread (COM dialogs need its message loop); results are
     // reported back through the completion callback.
     services.pick = [](const nlohmann::json& payload, bool folder, DesktopPlatformServices::PickCompletion done) {

@@ -87,5 +87,13 @@ export default {
   "native.unrealProjectMismatch": "선택한 프로젝트는 이 에셋을 포함하지 않습니다. {project}을(를) 선택하세요.",
   "native.unrealProjectApprovalRequired": "이 에셋이 속한 Unreal 프로젝트를 승인하세요: {project}",
   "native.unrealEditorRequired": ".uasset 파일을 변환하기 전에 설정에서 Unreal Editor를 선택하세요.",
-  "native.unrealConvertFailed": "Unreal Editor가 이 에셋을 변환하지 못했습니다: {reason}"
+  "native.unrealConvertFailed": "Unreal Editor가 이 에셋을 변환하지 못했습니다: {reason}",
+  "native.updateNotReady": "설치할 수 있는 업데이트를 찾지 못했습니다. 업데이트를 다시 확인하세요.",
+  "native.updateBusy": "실행 중인 작업을 끝내거나 취소한 뒤 다시 업데이트하세요.",
+  "native.updateRunning": "이미 업데이트가 진행 중입니다.",
+  "native.updateUrlRejected": "업데이트 다운로드 주소가 신뢰할 수 있는 GitHub 릴리스 주소가 아닙니다.",
+  "native.updateChecksumMissing": "릴리스에 설치 파일의 체크섬이 없어 내려받지 않았습니다.",
+  "native.updateChecksumMismatch": "내려받은 설치 파일이 게시된 체크섬과 일치하지 않아 삭제했습니다.",
+  "native.updateLaunchFailed": "업데이트 설치 프로그램을 시작하지 못했습니다.",
+  "native.sourceRemoveMissing": "이 소스는 더 이상 라이브러리에 없어요."
 };

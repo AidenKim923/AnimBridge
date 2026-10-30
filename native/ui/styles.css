@@ -463,18 +463,88 @@ button .icon + span {
   padding: 0 5px;
   color: #bdbdbd;
 }
-.sidebar-footer {
-  padding: 16px 20px;
-  border-top: 1px solid #262626;
+/* SOURCE LIBRARY rows: an expand/collapse chevron next to the folder button. */
+.tree-row {
   display: flex;
-  gap: 8px;
   align-items: center;
-  color: #929292;
-  font-size: 11px;
+  gap: 2px;
+  min-width: 0;
 }
-.sidebar-footer .icon {
-  width: 14px;
-  height: 14px;
+.tree-row .tree-item {
+  flex: 1;
+  width: auto;
+}
+.tree-toggle,
+.tree-toggle-space {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.tree-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: #999;
+}
+.tree-toggle:hover {
+  background: #262626;
+  color: #fff;
+}
+.tree-toggle .icon {
+  width: 13px;
+  height: 13px;
+}
+[dir='rtl'] .tree-toggle[data-open='false'] .icon {
+  transform: scaleX(-1);
+}
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 190px;
+  padding: 5px;
+  background: #1d1d1d;
+  border: 1px solid #444;
+  border-radius: 9px;
+  box-shadow: 0 12px 40px #000a;
+  display: flex;
+  flex-direction: column;
+}
+.context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-align: start;
+  font-size: 12px;
+  color: #ddd;
+}
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  background: #2c2c2c;
+  color: #fff;
+}
+.context-menu button.danger {
+  color: #ff9a9a;
+}
+.context-menu .icon {
+  width: 15px;
+  height: 15px;
+}
+/* Marquee selection rectangle drawn over the library page. */
+.marquee-box {
+  position: fixed;
+  z-index: 900;
+  pointer-events: none;
+  border: 1px solid #cfcfcf;
+  background: #ffffff1a;
+  border-radius: 3px;
+}
+body.marquee-active,
+body.marquee-active * {
+  user-select: none;
+  cursor: crosshair;
 }
 .workspace {
   min-width: 0;
@@ -1705,6 +1775,52 @@ input[type='radio'] {
   align-items: center;
   gap: 7px;
 }
+/* Preview page: clip information sits below the player instead of in a right column. */
+.clip-info {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid #373737;
+  border-radius: 12px;
+  background: #101010;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.clip-info-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.clip-info-head h2 {
+  font-size: 17px;
+}
+.clip-info .clip-facts h3 {
+  display: none; /* the section heading above already says "clip information" */
+}
+.clip-info dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  column-gap: 28px;
+}
+.clip-info .kv dd {
+  max-width: none;
+}
+.clip-info-notices:empty {
+  display: none;
+}
+.clip-info-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.clip-info-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .bones-list {
   font:
     12px/2 Consolas,
@@ -1953,6 +2069,30 @@ dialog .notice {
   line-height: 1.8;
   padding-left: 18px;
   margin: 10px 0;
+}
+.warning-group summary {
+  cursor: pointer;
+}
+.warning-group ul {
+  padding-inline-start: 16px;
+  margin: 4px 0;
+  word-break: break-all;
+}
+.warning-count {
+  font-size: 10px;
+  background: #303030;
+  border-radius: 4px;
+  padding: 0 6px;
+  color: #ddd;
+  white-space: nowrap;
+}
+/* "Export all" row between the analysis stat cards and the panels. */
+.export-all {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 14px 0 4px;
 }
 .mapping-input {
   width: 160px;

@@ -41,8 +41,22 @@ AllowNoIcons=yes
 ChangesEnvironment=no
 
 [Languages]
+; The names below are what ActiveLanguage returns; native/include/animbridge/install_discovery.hpp
+; (languageFromInstaller) maps them to the app's UI locales, so keep both in sync.
+; Inno Setup ships no Chinese or Hindi translation, so zh-CN, zh-TW and hi have no installer
+; language. The app itself still supports them (the OS UI language is used as the default).
 Name: english; MessagesFile: compiler:Default.isl
+Name: arabic; MessagesFile: compiler:Languages\Arabic.isl
+Name: brazilianportuguese; MessagesFile: compiler:Languages\BrazilianPortuguese.isl
+Name: french; MessagesFile: compiler:Languages\French.isl
+Name: japanese; MessagesFile: compiler:Languages\Japanese.isl
 Name: korean; MessagesFile: compiler:Languages\Korean.isl
+Name: polish; MessagesFile: compiler:Languages\Polish.isl
+Name: portuguese; MessagesFile: compiler:Languages\Portuguese.isl
+Name: russian; MessagesFile: compiler:Languages\Russian.isl
+Name: spanish; MessagesFile: compiler:Languages\Spanish.isl
+Name: thai; MessagesFile: compiler:Languages\Thai.isl
+Name: turkish; MessagesFile: compiler:Languages\Turkish.isl
 
 [Tasks]
 Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
@@ -57,11 +71,24 @@ Name: "{group}\Uninstall AnimBridge"; Filename: "{uninstallexe}"
 
 [Run]
 Filename: "{app}\AnimBridge.exe"; Description: "Launch AnimBridge"; Flags: nowait postinstall skipifsilent
+; The in-app updater runs this installer with /VERYSILENT ... /RELAUNCH=1 after closing
+; AnimBridge. A silent install shows no finish page, but postinstall entries still run
+; unless skipped, so this entry (silent only, and only when asked) restarts the app.
+; A plain silent install by an administrator does not start the app.
+Filename: "{app}\AnimBridge.exe"; Flags: nowait postinstall skipifnotsilent; Check: RelaunchRequested
 
-; Deliberately no [UninstallDelete]. Only installed payload files and shortcuts
-; are removed; user caches, export folders, and input projects are retained.
+; Only installed payload files, shortcuts and the installer-written language file are
+; removed; user caches, export folders, and input projects are retained.
+[UninstallDelete]
+Type: files; Name: "{app}\install-language.txt"
 
 [Code]
+{ True when the in-app updater started Setup with /RELAUNCH=1. }
+function RelaunchRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -69,6 +96,10 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    { Remember the language chosen in Setup. The app reads this file on its first run
+      to preselect its interface language (ASCII, e.g. "korean"). A failed write only
+      means the app falls back to the Windows display language. }
+    SaveStringToFile(ExpandConstant('{app}\install-language.txt'), ActiveLanguage, False);
     { Fixed WebView2 120+ on Windows 10 requires read/execute access for
       both application-package SIDs. Only the bundled runtime is changed. }
     Parameters := '"' + ExpandConstant('{app}\runtime\webview2') +

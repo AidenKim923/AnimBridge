@@ -614,6 +614,41 @@ void Session::ingest(const std::vector<fs::path>& paths, const fs::path& cache, 
         }
     }
 }
+namespace {
+// A removed source may already be gone from disk, so compare spellings when
+// the file system cannot resolve it any more.
+bool sameSourcePath(const fs::path& a, const fs::path& b) {
+    std::error_code first, second;
+    auto left = fs::weakly_canonical(a, first), right = fs::weakly_canonical(b, second);
+    if (first || second) return a.lexically_normal() == b.lexically_normal();
+    return left == right;
+}
+}
+RemovedSource Session::removeSource(const fs::path& sourcePath) {
+    RemovedSource removed;
+    std::set<std::string> packageIds;
+    for (auto package = packages.begin(); package != packages.end();) {
+        if (sameSourcePath(package->sourcePath, sourcePath)) { packageIds.insert(package->packageId); package = packages.erase(package); }
+        else ++package;
+    }
+    removed.found = !packageIds.empty();
+    std::vector<fs::path> removedSources;
+    for (auto clip = clips.begin(); clip != clips.end();) {
+        if (packageIds.contains(clip->packageId)) {
+            removed.clipIds.push_back(clip->id); removedSources.push_back(clip->source); clip = clips.erase(clip);
+        } else ++clip;
+    }
+    // An extraction folder is released only when none of the remaining clips
+    // still read from it (the same package bytes can back two records).
+    for (auto root = extractedRoots.begin(); root != extractedRoots.end();) {
+        auto owns = [&](const fs::path& source) { return pathContains(*root, source); };
+        const bool usedByRemoved = std::any_of(removedSources.begin(), removedSources.end(), owns);
+        const bool stillUsed = std::any_of(clips.begin(), clips.end(), [&](const Clip& clip) { return owns(clip.source); });
+        if (usedByRemoved && !stillUsed) { removed.extractedRoots.push_back(*root); root = extractedRoots.erase(root); }
+        else ++root;
+    }
+    return removed;
+}
 void Session::selectAll(bool value, ExportMode mode, bool allowUnityHelper) { for (auto& clip : clips) clip.selected = value && selectableFor(clip, mode, allowUnityHelper); }
 bool Session::select(const std::string& id, bool value, ExportMode mode, bool allowUnityHelper) {
     for (auto& clip : clips) if (clip.id == id) { if (value && !selectableFor(clip, mode, allowUnityHelper)) return false; clip.selected = value; return true; }

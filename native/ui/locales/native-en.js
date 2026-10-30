@@ -87,5 +87,13 @@ export default {
   "native.unrealProjectMismatch": "The selected project does not own this asset. Choose {project}.",
   "native.unrealProjectApprovalRequired": "Approve the Unreal project that owns this asset: {project}",
   "native.unrealEditorRequired": "Choose Unreal Editor in Settings before converting .uasset files.",
-  "native.unrealConvertFailed": "Unreal Editor could not convert this asset: {reason}"
+  "native.unrealConvertFailed": "Unreal Editor could not convert this asset: {reason}",
+  "native.updateNotReady": "No installable update was found. Check for updates again.",
+  "native.updateBusy": "Finish or cancel the running job, then try updating again.",
+  "native.updateRunning": "An update is already in progress.",
+  "native.updateUrlRejected": "The update download address is not a trusted GitHub release address.",
+  "native.updateChecksumMissing": "The release has no checksum for the installer, so it was not downloaded.",
+  "native.updateChecksumMismatch": "The downloaded installer did not match the published checksum, so it was deleted.",
+  "native.updateLaunchFailed": "Could not start the update installer.",
+  "native.sourceRemoveMissing": "This source is no longer in the library."
 };

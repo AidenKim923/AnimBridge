@@ -206,6 +206,141 @@ int main(int argc, char** argv) {
             ++passed;
         }
         {
+            // In-app update helpers: installer name, download host allowlist, SHA256SUMS parsing, asset selection.
+            using namespace update;
+            require(installerAssetName("1.0.3") == "AnimBridge-1.0.3-Setup-x64.exe", "Installer asset name changed");
+            for (const char* good : {"https://github.com/AidenKim923/AnimBridge/releases/download/v1.0.3/AnimBridge-1.0.3-Setup-x64.exe",
+                                     "https://objects.githubusercontent.com/github-production-release-asset/1?X-Amz-Signature=ab%2Fc&response-content-disposition=attachment",
+                                     "https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sp=r&sv=2018-11-09"})
+                require(isAllowedDownloadUrl(good), "Allowed GitHub download URL rejected");
+            for (const char* bad : {"", "http://github.com/a/b", "https://evil.example/x", "https://github.com.evil.io/x", "https://evilgithub.com/x",
+                                    "https://user@github.com/x", "https://github.com:8443/x", "https://github.com", "https://GITHUB.com/x",
+                                    "https://github.com/x#frag", "https://github.com/x y", "https://api.github.com/x", "file:///C:/x.exe"})
+                require(!isAllowedDownloadUrl(bad), "Untrusted download URL accepted");
+
+            const std::string hashA(64, 'a'), hashB(64, 'b');
+            const std::string sums = hashB + "  AnimBridge-1.0.2-Setup-x64.exe\r\n" + std::string(64, 'A') + " *AnimBridge-1.0.3-Setup-x64.exe\r\n# comment\n\n";
+            require(checksumFor(sums, "AnimBridge-1.0.3-Setup-x64.exe") == hashA, "Binary-mode checksum line not parsed (or not lowercased)");
+            require(checksumFor(sums, "AnimBridge-1.0.2-Setup-x64.exe") == hashB, "Text-mode checksum line not parsed");
+            require(!checksumFor(sums, "AnimBridge-1.0.3-Setup-x64.ex"), "Partial file name matched a checksum");
+            require(!checksumFor(sums, "AnimBridge-9.9.9-Setup-x64.exe") && !checksumFor("", "x"), "Missing file produced a checksum");
+            require(!checksumFor("abc  AnimBridge-1.0.3-Setup-x64.exe\n", "AnimBridge-1.0.3-Setup-x64.exe"), "Short hash accepted");
+            require(!checksumFor(hashA + "  f.exe\n" + hashB + "  f.exe\n", "f.exe"), "Conflicting checksum lines accepted");
+            require(checksumFor(hashA + "  f.exe\n" + hashA + " *f.exe", "f.exe") == hashA, "Repeated identical checksum rejected");
+
+            const std::string base = "https://github.com/AidenKim923/AnimBridge/releases/download/v1.0.3/";
+            Json release = {{"tag_name", "v1.0.3"}, {"assets", Json::array({
+                {{"name", "AnimBridge-1.0.3-Setup-x64.exe.sig"}, {"browser_download_url", base + "AnimBridge-1.0.3-Setup-x64.exe.sig"}},
+                {{"name", "AnimBridge-1.0.3-Setup-x64.exe"}, {"browser_download_url", base + "AnimBridge-1.0.3-Setup-x64.exe"}, {"size", 1234}},
+                {{"name", "SHA256SUMS.txt"}, {"browser_download_url", base + "SHA256SUMS.txt"}}})}};
+            const auto assets = selectAssets(release, "1.0.3");
+            require(assets && assets->installerUrl == base + "AnimBridge-1.0.3-Setup-x64.exe" && assets->checksumsUrl == base + "SHA256SUMS.txt" && assets->installerSize == 1234, "Release assets not selected");
+            require(!selectAssets(release, "1.0.4"), "Installer for another version accepted");
+            auto noSums = release; noSums["assets"].erase(2);
+            require(!selectAssets(noSums, "1.0.3"), "Release without SHA256SUMS.txt was installable");
+            auto offsite = release; offsite["assets"][1]["browser_download_url"] = "https://evil.example/AnimBridge-1.0.3-Setup-x64.exe";
+            require(!selectAssets(offsite, "1.0.3"), "Installer hosted outside GitHub accepted");
+            require(newestRelease(Json::array({release}))->assets.has_value(), "newestRelease dropped installable assets");
+            ++passed;
+        }
+        if (!update::releasesApiUrl(app::GithubUrl).empty()) {
+            // installUpdate end to end with fake network and launch services: no real download or installer.
+            std::mutex m; std::condition_variable cv; std::map<std::string, Json> replies; std::vector<Json> updates;
+            const std::string installerBytes = "fake installer bytes";
+            std::string sumsBody, launchedArgs; fs::path launched; int exits = 0; bool slowInstaller = false;
+            const std::string base = "https://github.com/AidenKim923/AnimBridge/releases/download/v999.0.1/";
+            const auto installerName = update::installerAssetName("999.0.1");
+            DesktopPlatformServices services;
+            services.httpGet = [&](const std::string&) {
+                return Json::array({{{"tag_name", "v999.0.1"}, {"assets", Json::array({
+                    {{"name", installerName}, {"browser_download_url", base + installerName}},
+                    {{"name", "SHA256SUMS.txt"}, {"browser_download_url", base + "SHA256SUMS.txt"}}})}}}).dump();
+            };
+            services.download = [&](const std::string& url, const fs::path& destination, std::uint64_t maxBytes, const DesktopPlatformServices::DownloadProgress& progress) {
+                const bool sums = url == base + "SHA256SUMS.txt";
+                require(sums || url == base + installerName, "Update downloaded an unexpected URL");
+                require(sums ? maxBytes < 16u * 1024 * 1024 : maxBytes >= 1024u * 1024 * 1024, "Unexpected download size limit");
+                if (!sums && slowInstaller) {
+                    // Keep reporting progress until the bridge asks to stop (cancel test).
+                    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+                    for (std::uint64_t received = 0; std::chrono::steady_clock::now() < until; ++received) {
+                        if (!progress(received, 1000)) return false;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                    }
+                    throw std::runtime_error("cancel never arrived");
+                }
+                write(destination, sums ? sumsBody : installerBytes);
+                return progress(installerBytes.size(), installerBytes.size());
+            };
+            services.launchInstaller = [&](const fs::path& installer, const std::vector<std::string>& arguments) {
+                launched = installer; launchedArgs.clear();
+                for (const auto& argument : arguments) launchedArgs += argument + " ";
+            };
+            services.requestExit = [&] { ++exits; };
+            DesktopBridge bridge([&](const Json& v) {
+                std::lock_guard lock(m);
+                if (v.contains("id")) replies[v["id"].get<std::string>()] = v;
+                else if (v.value("event", "") == "updateProgress") updates.push_back(v["data"]);
+                cv.notify_all();
+            }, services, root / "update-install");
+            auto call = [&](const std::string& id, const std::string& action) {
+                bridge.handle({{"id", id}, {"action", action}, {"payload", Json::object()}});
+                std::unique_lock lock(m);
+                if (!cv.wait_for(lock, std::chrono::seconds(30), [&] { return replies.contains(id); })) throw std::runtime_error("Update reply timeout");
+                auto v = replies.at(id); replies.erase(id); return v;
+            };
+            // Waits for the final event of one install attempt and returns its state.
+            auto finalState = [&] {
+                std::unique_lock lock(m);
+                const auto isFinal = [&] { return !updates.empty() && std::set<std::string>{"installing", "failed", "cancelled"}.contains(updates.back().value("state", "")); };
+                if (!cv.wait_for(lock, std::chrono::seconds(30), isFinal)) throw std::runtime_error("Update never finished");
+                auto last = updates.back(); updates.clear(); return last;
+            };
+            auto waitIdle = [&] { for (int i = 0; i < 2000 && call("idle-" + std::to_string(i), "cancelUpdate")["result"]["cancelling"] == true; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5)); };
+
+            const auto early = call("i0", "installUpdate");
+            require(early["ok"] == false && early["error"]["messageKey"] == "native.updateNotReady", "installUpdate ran before a successful check");
+            const auto checked = call("i1", "checkForUpdate");
+            require(checked["ok"] == true && checked["result"]["installable"] == true, "Release with installer and checksums was not installable");
+
+            // Wrong checksum: nothing launched and nothing left on disk.
+            sumsBody = std::string(64, '0') + " *" + installerName + "\n";
+            require(call("i2", "installUpdate")["ok"] == true, "installUpdate was not accepted");
+            auto last = finalState(); waitIdle();
+            require(last["state"] == "failed" && last["messageKey"] == "native.updateChecksumMismatch", "Checksum mismatch was not reported");
+            require(launched.empty() && exits == 0, "Unverified installer was launched");
+            const auto updateFolder = root / "update-install" / "cache" / "updates";
+            require(!fs::exists(updateFolder / installerName) && !fs::exists(updateFolder / (installerName + ".partial")), "Rejected installer was left on disk");
+
+            // No checksum line for the installer: refused before the large download.
+            sumsBody = std::string(64, '0') + " *SomethingElse.exe\n";
+            require(call("i3", "installUpdate")["ok"] == true, "installUpdate was not accepted");
+            last = finalState(); waitIdle();
+            require(last["state"] == "failed" && last["messageKey"] == "native.updateChecksumMissing" && launched.empty(), "Missing checksum was not refused");
+
+            // Cancel during the download.
+            sumsBody = textSha256(installerBytes) + " *" + installerName + "\n";
+            slowInstaller = true;
+            require(call("i4", "installUpdate")["ok"] == true, "installUpdate was not accepted");
+            {
+                std::unique_lock lock(m);
+                cv.wait_for(lock, std::chrono::seconds(30), [&] { return std::any_of(updates.begin(), updates.end(), [](const Json& u) { return u.value("received", 0) > 0; }); });
+            }
+            require(call("i5", "cancelUpdate")["ok"] == true, "cancelUpdate failed");
+            last = finalState(); waitIdle();
+            require(last["state"] == "cancelled" && launched.empty() && exits == 0, "Cancelled update still launched");
+
+            // Matching checksum: the verified installer is launched silently and the app asked to close.
+            slowInstaller = false;
+            require(call("i6", "installUpdate")["ok"] == true, "installUpdate was not accepted");
+            last = finalState(); waitIdle();
+            require(last["state"] == "installing" && last["version"] == "999.0.1", "Verified update did not reach installing");
+            require(launched.filename() == fromUtf8(installerName) && read(launched) == installerBytes, "Launched file is not the verified installer");
+            require(launchedArgs.find("/VERYSILENT") != std::string::npos && launchedArgs.find("/RELAUNCH=1") != std::string::npos, "Installer switches missing");
+            require(exits == 1, "App was not asked to close after launching the installer");
+            ++passed;
+        }
+        {
             Harness h(root / "raw-authority"); auto input = h.fixtureRoot / "input.anim"; write(input, "native fixture");
             require(!h.raw("scan", {{"paths", {utf8(input)}}}).value("ok", true), "Raw UI paths acquired source authority");
             require(!h.raw("preview", {{"source", utf8(input)}}).value("ok", true), "Raw helper source acquired read authority");
@@ -381,6 +516,27 @@ int main(int argc, char** argv) {
             require(std::chrono::steady_clock::now() - started < std::chrono::seconds(5), "Destructor left a read evaluator running");
             require(h.response(first)["error"]["code"] == "CANCELLED" && h.response(second)["error"]["code"] == "CANCELLED", "Destructor failed to drain both read workers"); ++passed;
         }
+        {
+            // Removing a SOURCE LIBRARY entry forgets it everywhere but keeps the user's files.
+            auto folder = root / "remove-source"; Harness h(folder);
+            auto kept = folder / "kept/Kept.fbx", gone = folder / "gone/Gone.fbx";
+            write(kept, "kept source bytes"); write(gone, "removed source bytes");
+            h.ok("scan", {{"paths", {utf8(kept), utf8(gone)}}}); auto state = h.idle();
+            require(state["clips"].size() == 2 && state["packages"].size() == 2, "Remove-source fixture missing");
+            Json ids = Json::array(); for (const auto& clip : state["clips"]) ids.push_back(clip["id"]);
+            h.ok("select", {{"ids", ids}});
+            auto goneRow = *std::find_if(state["packages"].begin(), state["packages"].end(), [](const Json& row) { return row["name"] == "Gone.fbx"; });
+            require(h.raw("removeSource", {{"sourcePath", goneRow["path"]}}).value("ok", false), "removeSource request failed");
+            state = h.idle();
+            require(state["clips"].size() == 1 && state["clips"][0]["name"] == "Kept", "Removed source clips stayed in the session");
+            require(state["packages"].size() == 1 && state["packages"][0]["name"] == "Kept.fbx", "Removed source stayed in Recent");
+            require(state["selectedIds"].size() == 1, "Removed clip stayed selected");
+            require(fs::is_regular_file(gone) && fs::is_regular_file(kept), "Source removal deleted an original file");
+            auto unknown = h.raw("removeSource", {{"sourcePath", goneRow["path"]}}); h.idle();
+            require(!unknown.value("ok", true) && unknown["error"]["code"] == "OPERATION_FAILED", "Removing an unknown source succeeded");
+            require(!h.raw("removeSource", Json::object()).value("ok", true), "Removing without a path succeeded");
+            ++passed;
+        }
         auto folder = root / "workflow"; Harness h(folder);
         auto fbx = folder / "cache/active/source.fbx", anim = folder / "source.anim";
         write(fbx, "preserved source bytes; this fixture makes no FBX structure claim");
@@ -494,6 +650,126 @@ int main(int argc, char** argv) {
                     Rig rig; open(rig, escHub, autoRoot / "data-escape"); auto state = rig.settled();
                     require(state["settings"]["unityEditor"] == "" && state["unityAuto"]["state"] == "none", "A junction escaping the Hub root was connected"); ++passed;
                 }
+            }
+#endif
+        }
+        {
+            // Unreal Editor auto-discovery and the first-run language, both through injected services:
+            // the real Epic launcher list, Program Files and installer files are never read.
+            const auto self = fs::absolute(fromUtf8(argv[0]));
+            const auto unrealRoot = root / "auto-unreal";
+            struct Rig {
+                std::mutex m; std::condition_variable cv; std::map<std::string, Json> replies; unsigned serial = 0; std::unique_ptr<DesktopBridge> bridge;
+                Json call(const std::string& action, Json payload = Json::object()) {
+                    auto id = std::to_string(++serial); bridge->handle({{"id", id}, {"action", action}, {"payload", payload}});
+                    std::unique_lock lock(m); if (!cv.wait_for(lock, std::chrono::seconds(60), [&] { return replies.contains(id); })) throw std::runtime_error("Unreal auto-connect reply timeout");
+                    return replies.at(id);
+                }
+                Json settled() {
+                    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                    for (;;) {
+                        auto state = call("getState")["result"];
+                        if (state["unrealAuto"]["state"] != "searching" && !bridge->working()) return state;
+                        if (std::chrono::steady_clock::now() > until) throw std::runtime_error("Unreal auto-discovery did not finish");
+                        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                    }
+                }
+            };
+            auto open = [&](Rig& rig, const fs::path& data, DesktopPlatformServices services) {
+                rig.bridge = std::make_unique<DesktopBridge>([&rig](const Json& v) { std::lock_guard lock(rig.m); if (v.contains("id")) rig.replies[v["id"].get<std::string>()] = v; rig.cv.notify_all(); }, std::move(services), data);
+            };
+            // A minimal engine tree: version file, both editor executables and the two Manny templates.
+            auto fakeEngine = [&](const fs::path& base, const std::string& folder, int minor, int patch) {
+                const auto engineRoot = base / folder;
+                write(engineRoot / "Engine/Build/Build.version", Json{{"MajorVersion", 5}, {"MinorVersion", minor}, {"PatchVersion", patch}}.dump());
+                for (const auto* name : {"UnrealEditor.exe", "UnrealEditor-Cmd.exe"}) {
+                    fs::create_directories(engineRoot / "Engine/Binaries/Win64");
+                    fs::copy_file(self, engineRoot / "Engine/Binaries/Win64" / name, fs::copy_options::overwrite_existing);
+                }
+                for (const auto* name : {"SKM_Manny_Simple.uasset", "SK_Mannequin.uasset"}) write(engineRoot / "Templates/TemplateResources/High/Characters/Content/Mannequins/Meshes" / name, name);
+                return engineRoot;
+            };
+            auto servicesFor = [](std::vector<discovery::UnrealInstall> installs) {
+                DesktopPlatformServices services;
+                services.unrealInstalls = [installs] { return installs; };
+                return services;
+            };
+            {   // Discovery is off when the shell injects no list.
+                Rig rig; open(rig, unrealRoot / "data-disabled", {});
+                auto state = rig.call("getState")["result"];
+                require(state["unrealAuto"]["state"] == "disabled" && state["settings"]["unreal_editor"] == "", "Unreal auto-discovery ran without an injected list"); ++passed;
+            }
+            {   // Language: nothing saved -> the injected default; unsupported codes -> English.
+                DesktopPlatformServices korean; korean.defaultLanguage = [] { return std::string("ko"); };
+                Rig rig; open(rig, unrealRoot / "data-language", korean);
+                require(rig.call("getState")["result"]["settings"]["language"] == "ko", "First run ignored the installer language");
+                // Once state is saved, a different installer language must not replace it.
+                require(rig.call("saveSettings", {{"settings", {{"theme", "dark"}}}})["ok"] == true, "Could not save settings");
+                rig.bridge.reset();
+                DesktopPlatformServices japanese; japanese.defaultLanguage = [] { return std::string("ja"); };
+                Rig again; open(again, unrealRoot / "data-language", japanese);
+                require(again.call("getState")["result"]["settings"]["language"] == "ko", "A saved language was replaced by the installer language");
+                DesktopPlatformServices invalid; invalid.defaultLanguage = [] { return std::string("xx"); };
+                Rig fallback; open(fallback, unrealRoot / "data-language-invalid", invalid);
+                require(fallback.call("getState")["result"]["settings"]["language"] == "en", "An unsupported default language was accepted"); ++passed;
+            }
+#ifdef _WIN32
+            {   // Newest supported install wins: 5.9 and 5.7 report versions the integration rejects.
+                const auto base = unrealRoot / "installs";
+                const auto v59 = fakeEngine(base, "UE_5.9", 9, 0), v58 = fakeEngine(base, "UE_5.8", 8, 2), v57 = fakeEngine(base, "UE_5.7", 7, 0);
+                // Only the folder name is listed; the engine version itself comes from Build.version.
+                auto services = servicesFor({{5, 7, utf8(v57)}, {5, 8, utf8(v58)}, {5, 9, utf8(v59)}, {5, 8, utf8(v58)}});
+                Rig rig; open(rig, unrealRoot / "data-connect", services); auto state = rig.settled();
+                const auto expected = v58 / "Engine/Binaries/Win64/UnrealEditor.exe";
+                require(state["unrealAuto"]["state"] == "connected" && sameFile(fromUtf8(state["settings"]["unreal_editor"].get<std::string>()), expected), "Newest supported Unreal Editor was not auto-connected");
+                bool editor = false, command = false; int templates = 0;
+                for (const auto& grant : state["pathGrants"]) {
+                    if (grant["source"] != "auto-discovered" || grant["engine"] != "unreal") continue;
+                    const auto path = fromUtf8(grant["path"].get<std::string>());
+                    if (grant["purpose"] == "editor" && sameFile(path, expected)) editor = true;
+                    if (grant["purpose"] == "editor" && sameFile(path, v58 / "Engine/Binaries/Win64/UnrealEditor-Cmd.exe")) command = true;
+                    if (grant["purpose"] == "read") ++templates;
+                }
+                require(editor && command && templates == 2, "Auto-connected Unreal Editor lacks its Editor, Cmd and template approvals");
+                // The saved approval survives a restart (re-probed) and keeps the note.
+                rig.bridge.reset(); Rig again; open(again, unrealRoot / "data-connect", services); auto restored = again.settled();
+                require(restored["unrealAuto"]["state"] == "connected" && restored["settings"]["unreal_editor"] == state["settings"]["unreal_editor"], "Auto-connected Unreal Editor was not restored");
+                // Clearing it is a decision: a restart must not reconnect it.
+                again.call("saveSettings", {{"settings", {{"unreal_editor", ""}}}});
+                again.bridge.reset(); Rig third; open(third, unrealRoot / "data-connect", services); auto cleared = third.settled();
+                require(cleared["settings"]["unreal_editor"] == "" && cleared["unrealAuto"]["state"] == "declined", "A cleared Unreal Editor was auto-connected again"); ++passed;
+            }
+            {   // A user choice made while discovery is in flight is never overwritten.
+                const auto autoEngine = fakeEngine(unrealRoot / "auto-engines", "UE_5.8", 8, 2), userEngine = fakeEngine(unrealRoot / "user-engines", "UE_5.8", 8, 2);
+                const auto userEditor = userEngine / "Engine/Binaries/Win64/UnrealEditor.exe";
+                std::promise<void> release; auto gate = release.get_future().share();
+                DesktopPlatformServices services;
+                services.unrealInstalls = [gate, location = utf8(autoEngine)] { gate.wait(); return std::vector<discovery::UnrealInstall>{{5, 8, location}}; };
+                services.pick = [userEditor](const Json&, bool, DesktopPlatformServices::PickCompletion done) { done({userEditor}, {}); };
+                Rig rig; open(rig, unrealRoot / "data-user", services);
+                auto picked = rig.call("chooseFiles", {{"purpose", "unreal-editor"}, {"engine", "unreal"}});
+                require(picked["ok"] == true, "Unreal picker did not complete");
+                while (rig.bridge->working()) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                auto grant = picked["result"]["grants"][0]["grant"].get<std::string>();
+                require(rig.call("saveSettings", {{"settings", {{"unreal_editor", utf8(userEditor)}, {"unreal_editorGrant", grant}}}})["ok"] == true, "Could not save the user's Unreal Editor");
+                release.set_value(); auto state = rig.settled();
+                require(sameFile(fromUtf8(state["settings"]["unreal_editor"].get<std::string>()), userEditor) && state["unrealAuto"]["state"] == "none", "A user-chosen Unreal Editor was overwritten by auto-connect"); ++passed;
+            }
+            {   // A junction that sends Binaries outside the install folder is rejected.
+                const auto outside = fakeEngine(unrealRoot / "outside", "UE_5.8", 8, 2);
+                const auto escape = unrealRoot / "escape" / "UE_5.8";
+                write(escape / "Engine/Build/Build.version", Json{{"MajorVersion", 5}, {"MinorVersion", 8}, {"PatchVersion", 2}}.dump());
+                const auto link = "cmd /c mklink /J \"" + (escape / "Engine/Binaries").string() + "\" \"" + (outside / "Engine/Binaries").string() + "\" >nul";
+                if (std::system(link.c_str()) == 0 && fs::exists(escape / "Engine/Binaries/Win64/UnrealEditor.exe")) {
+                    Rig rig; open(rig, unrealRoot / "data-escape", servicesFor({{5, 8, utf8(escape)}})); auto state = rig.settled();
+                    require(state["settings"]["unreal_editor"] == "" && state["unrealAuto"]["state"] == "none", "A junction escaping the Unreal install was connected"); ++passed;
+                }
+            }
+            {   // An install missing its Cmd companion cannot run conversions and is skipped.
+                const auto incomplete = fakeEngine(unrealRoot / "incomplete", "UE_5.8", 8, 2);
+                fs::remove(incomplete / "Engine/Binaries/Win64/UnrealEditor-Cmd.exe");
+                Rig rig; open(rig, unrealRoot / "data-incomplete", servicesFor({{5, 8, utf8(incomplete)}})); auto state = rig.settled();
+                require(state["settings"]["unreal_editor"] == "" && state["unrealAuto"]["state"] == "none", "An install without UnrealEditor-Cmd was connected"); ++passed;
             }
 #endif
         }

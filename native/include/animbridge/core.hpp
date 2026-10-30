@@ -48,6 +48,13 @@ struct PackageRecord {
     std::string packageId, sourceHash, parserVersion = ParserVersion;
     fs::path sourcePath;
 };
+// What Session::removeSource dropped, so the caller can clean up selection
+// state and the app-owned extraction folders that nothing uses any more.
+struct RemovedSource {
+    std::vector<std::string> clipIds;
+    std::vector<fs::path> extractedRoots; // Only roots no remaining clip lives in.
+    bool found = false;
+};
 struct Session {
     std::vector<Clip> clips;
     std::vector<std::string> warnings;
@@ -55,6 +62,9 @@ struct Session {
     std::vector<PackageRecord> packages;
     void ingest(const std::vector<fs::path>& droppedPaths, const fs::path& cache, Limits limits = {},
         const RuntimeContext& context = resolveRuntimeContext());
+    // Forgets one dropped source (package, folder or file) and its clips.
+    // Never touches the files on disk; the caller decides about cache folders.
+    RemovedSource removeSource(const fs::path& sourcePath);
     void selectAll(bool value, ExportMode mode = ExportMode::Bake, bool allowUnityHelper = false);
     bool select(const std::string& id, bool value, ExportMode mode = ExportMode::Bake, bool allowUnityHelper = false);
 };
