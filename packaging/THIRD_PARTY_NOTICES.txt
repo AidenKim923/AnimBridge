@@ -61,7 +61,7 @@ and enables GPL, libx264 and libx265. This actual build is GPL-enabled;
 the upstream aggregate LGPL classification must not be read as applying
 to this FFmpeg configuration. Original upstream notices remain intact.
 Additional dependency sources: see SOURCE-AVAILABILITY.txt and the release's
-AnimBridge-1.0.4-Corresponding-Sources.zip asset.
+AnimBridge-1.0.5-Corresponding-Sources.zip asset.
 
 Microsoft Edge WebView2 Fixed Version Runtime 156.0.4314.50 and WebView2 SDK:
 SDK version: 1.0.3650.58 (WebView2LoaderStatic.lib linked into AnimBridge).

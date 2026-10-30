@@ -35,10 +35,10 @@ This source archive is Blender's published source release; it does not
 pre-download every external dependency source referenced by its build
 recipes. Rebuilding Blender therefore needs those upstream sources and
 build tools. No claim is made that the included sources form a fully
-offline Blender build environment. The Windows v1.0.4 release additionally
+offline Blender build environment. The Windows v1.0.5 release additionally
 provides the pinned GPL/LGPL and MPL dependency source archives identified
 in that recipe, plus supporting NumPy/OpenBLAS build sources, in:
-https://github.com/AidenKim923/AnimBridge/releases/download/v1.0.4/AnimBridge-1.0.4-Corresponding-Sources.zip
+https://github.com/AidenKim923/AnimBridge/releases/download/v1.0.5/AnimBridge-1.0.5-Corresponding-Sources.zip
 The source asset includes its own source URLs, checksums and build notes.
 Keep this asset available alongside the binary release. Rebuilding still
 requires the documented toolchains and other upstream build dependencies.
