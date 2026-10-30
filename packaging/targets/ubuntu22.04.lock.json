@@ -1,0 +1,295 @@
+{
+  "schema_version": 2,
+  "target": "ubuntu22.04",
+  "platform": "linux-x64",
+  "abi": "Ubuntu 22.04 / glibc 2.35 / x86_64; CPython max GLIBC_2.17; wheels manylinux2014 (glibc 2.17)",
+  "note": "All asset URLs and SHA-256 values are pinned from official upstream sources. Resolved describes provenance and checksum resolution, not native execution, signing, notarization or release-gate completion. Source and license descriptors are retained; system GTK/WebKitGTK/OpenSSL remain distribution dependencies.",
+  "assets": [
+    {
+      "name": "python",
+      "version": "3.12.10",
+      "filename": "cpython-3.12.10+20250529-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/cpython-3.12.10%2B20250529-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "sha256": "f50d08e0304b15d752b22932047135c1dc02f81977b284e51288be9d90627bca",
+      "license": "Python-2.0 AND CNRI-Python",
+      "status": "resolved",
+      "provenance": "https://github.com/astral-sh/python-build-standalone/releases/tag/20250529",
+      "checksum_provenance": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/SHA256SUMS",
+      "abi": "CPython cp312; x86_64-unknown-linux-gnu; glibc dynamic, upstream maximum required symbol GLIBC_2.17",
+      "upstream_build": "20250529",
+      "upstream_runtime_metadata": {
+        "target_triple": "x86_64-unknown-linux-gnu",
+        "python_version": "3.12.10",
+        "python_tag": "cp312",
+        "python_abi_tag": "",
+        "python_platform_tag": "linux-x86_64",
+        "crt_features": [
+          "glibc-dynamic",
+          "glibc-max-symbol-version:2.17)"
+        ],
+        "licenses": [
+          "Python-2.0",
+          "CNRI-Python"
+        ],
+        "license_path": "licenses/LICENSE.cpython.txt"
+      },
+      "license_url": "https://raw.githubusercontent.com/python/cpython/v3.12.10/LICENSE",
+      "license_sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
+      "source": {
+        "filename": "Python-3.12.10.tar.xz",
+        "url": "https://www.python.org/ftp/python/3.12.10/Python-3.12.10.tar.xz",
+        "sha256": "07ab697474595e06f06647417d3c7fa97ded07afc1a7e4454c5639919b46eaea",
+        "version": "3.12.10",
+        "provenance": "https://www.python.org/downloads/release/python-31210/",
+        "digest_origin": "SHA-256 calculated from downloaded python.org source bytes"
+      },
+      "build_recipe_source": {
+        "filename": "python-build-standalone-20250529.tar.gz",
+        "url": "https://codeload.github.com/astral-sh/python-build-standalone/tar.gz/refs/tags/20250529",
+        "sha256": "62b10d6851664cb7cec1b70440845cf37b2fad9a06a0453989e3ba289dba0fc6",
+        "version": "20250529",
+        "license": "MIT",
+        "license_url": "https://raw.githubusercontent.com/astral-sh/python-build-standalone/20250529/LICENSE",
+        "license_sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+      },
+      "license_bundle": {
+        "filename": "cpython-3.12.10+20250529-x86_64-unknown-linux-gnu-pgo+lto-full.tar.zst",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/cpython-3.12.10%2B20250529-x86_64-unknown-linux-gnu-pgo%2Blto-full.tar.zst",
+        "sha256": "9ea191b9620e1e3d6f81ec0373d4d5006d4d1c482247a4824f7f69f2212016a8",
+        "version": "3.12.10+20250529",
+        "archive_directory": "python/licenses",
+        "metadata_path": "python/PYTHON.json",
+        "metadata_sha256": "a8f42efea6dfc0ed94b34f662e54a34cc952c4e9263235fbf3d12a175a673e78",
+        "files": [
+          {
+            "path": "python/licenses/LICENSE.bdb.txt",
+            "sha256": "3bdff06e69991c94664f2ef5c5f8096f60b7dbec071756ea6cc26b445e06ec5b"
+          },
+          {
+            "path": "python/licenses/LICENSE.bzip2.txt",
+            "sha256": "1f38bbc7caacafd65169276d759c0d88c991b753b643ce35d0e45ea1971dd441"
+          },
+          {
+            "path": "python/licenses/LICENSE.cpython.txt",
+            "sha256": "86e61415828a8b5b06ec8d024e6f086ce155a8b85fd0c419c0ba4dc004e74fdd"
+          },
+          {
+            "path": "python/licenses/LICENSE.expat.txt",
+            "sha256": "122f2c27000472a201d337b9b31f7eb2b52d091b02857061a8880371612d9534"
+          },
+          {
+            "path": "python/licenses/LICENSE.libedit.txt",
+            "sha256": "29cea33c32bbc9785142386377915612a2fa786482c46843383384aded2e09b1"
+          },
+          {
+            "path": "python/licenses/LICENSE.libffi.txt",
+            "sha256": "deaf3a42effb551a5b140fa9afefed183a27f1341c6d1bf430d106a5e6931fc0"
+          },
+          {
+            "path": "python/licenses/LICENSE.liblzma.txt",
+            "sha256": "828d5b508798d6a95c1c08ce5eee517a84ed1bda14eac58c440b6bce2c5cf1ca"
+          },
+          {
+            "path": "python/licenses/LICENSE.libuuid.txt",
+            "sha256": "122ee1f7e258f2c3c0e538a75c037684f420454bf3850ddc74ce750bbf5fe86b"
+          },
+          {
+            "path": "python/licenses/LICENSE.libX11.txt",
+            "sha256": "2daec087a88e7c9b8082557cdeebad5bbb8155a4137472f0b22e269cd99d0c1e"
+          },
+          {
+            "path": "python/licenses/LICENSE.libXau.txt",
+            "sha256": "56abe29bb1d9806a9e04fa9f80fed2c0f18027594df3f098148d814aef6bddfa"
+          },
+          {
+            "path": "python/licenses/LICENSE.libxcb.txt",
+            "sha256": "c5ffbfeaa501071ceeb97b7de2c0d703fdaa35de01c0fb6cbac1c28453a3e9fd"
+          },
+          {
+            "path": "python/licenses/LICENSE.mpdecimal.txt",
+            "sha256": "669512af7219f58be03a398766d7c9da11a3b3df9d3f05cb74c5ceca25c8da3b"
+          },
+          {
+            "path": "python/licenses/LICENSE.ncurses.txt",
+            "sha256": "87a4c4442337b8968ef956031c406b74f9cb7149b7ba87311bdaba534816201c"
+          },
+          {
+            "path": "python/licenses/LICENSE.openssl-1.1.txt",
+            "sha256": "9c04cce50c4989d5601dd8b07f6ab922c40388b66ac736c9007cb1ed9d9dd560"
+          },
+          {
+            "path": "python/licenses/LICENSE.openssl-3.txt",
+            "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+          },
+          {
+            "path": "python/licenses/LICENSE.sqlite.txt",
+            "sha256": "38bef3d28b24f145ea293bd3b6eb4b20396982abc8303128fb493986ea5bc719"
+          },
+          {
+            "path": "python/licenses/LICENSE.tcl.txt",
+            "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16"
+          },
+          {
+            "path": "python/licenses/LICENSE.tix.txt",
+            "sha256": "3ac5cdd0bef6c43ce34c6a7ced452081d9e5a0bf94082b9f9147d23ec9e214f5"
+          },
+          {
+            "path": "python/licenses/LICENSE.zlib.txt",
+            "sha256": "818922b2620f12801a12bf78e399644a30990e66824abd8ca8ec24d451d6f92c"
+          }
+        ],
+        "checksum_provenance": "https://github.com/astral-sh/python-build-standalone/releases/download/20250529/SHA256SUMS"
+      },
+      "verification": {
+        "sha256_download_matched": true,
+        "upstream_PYTHON_json_checked": true,
+        "native_execution": "pending target gate"
+      }
+    },
+    {
+      "name": "numpy",
+      "version": "2.2.6",
+      "filename": "numpy-2.2.6-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/8c/3d/1e1db36cfd41f895d266b103df00ca5b3cbe965184df824dec5c08c6b803/numpy-2.2.6-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "fd83c01228a688733f1ded5201c678f0c53ecc1006ffbc404db9f7a899ac6249",
+      "license": "BSD-3-Clause",
+      "status": "resolved",
+      "provenance": "https://pypi.org/pypi/numpy/2.2.6/json",
+      "requires_python": ">=3.10",
+      "abi": "cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64",
+      "license_url": "https://raw.githubusercontent.com/numpy/numpy/v2.2.6/LICENSE.txt",
+      "license_sha256": "01fb016849aa427edb1bbbbd55f91c26ca6cadb32a5b20e7f000655dd05b0760",
+      "source": {
+        "filename": "numpy-2.2.6.tar.gz",
+        "url": "https://files.pythonhosted.org/packages/76/21/7d2a95e4bba9dc13d043ee156a356c0a8f0c6309dff6b21b4d71a073b8a8/numpy-2.2.6.tar.gz",
+        "sha256": "e29554e2bef54a90aa5cc07da6ce955accb83f21ab5de01a62c8478897b264fd",
+        "digest_origin": "PyPI release JSON urls[].digests.sha256; downloaded bytes matched"
+      },
+      "bundled_notices": [
+        {
+          "path": "numpy-2.2.6.dist-info/LICENSE.txt",
+          "sha256": "c002bd26de7dc7aa464250a0de063d58fe55974452e4389e5c21c350a820bf06"
+        }
+      ],
+      "verification": {
+        "sha256_download_matched": true,
+        "wheel_tags_checked": true,
+        "native_execution": "pending target gate"
+      }
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.2",
+      "filename": "PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
+      "license": "MIT",
+      "status": "resolved",
+      "provenance": "https://pypi.org/pypi/PyYAML/6.0.2/json",
+      "requires_python": ">=3.8",
+      "abi": "cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64",
+      "license_url": "https://raw.githubusercontent.com/yaml/pyyaml/6.0.2/LICENSE",
+      "license_sha256": "8d3928f9dc4490fd635707cb88eb26bd764102a7282954307d3e5167a577e8a4",
+      "source": {
+        "filename": "pyyaml-6.0.2.tar.gz",
+        "url": "https://files.pythonhosted.org/packages/54/ed/79a089b6be93607fa5cdaedf301d7dfb23af5f25c398d5ead2525b063e17/pyyaml-6.0.2.tar.gz",
+        "sha256": "d584d9ec91ad65861cc08d42e834324ef890a082e591037abe114850ff7bbc3e",
+        "digest_origin": "PyPI release JSON urls[].digests.sha256; downloaded bytes matched"
+      },
+      "bundled_notices": [
+        {
+          "path": "PyYAML-6.0.2.dist-info/LICENSE",
+          "sha256": "8d3928f9dc4490fd635707cb88eb26bd764102a7282954307d3e5167a577e8a4"
+        }
+      ],
+      "verification": {
+        "sha256_download_matched": true,
+        "wheel_tags_checked": true,
+        "native_execution": "pending target gate"
+      }
+    },
+    {
+      "name": "blender",
+      "version": "5.2.3",
+      "filename": "blender-5.2.3-linux-x64.tar.xz",
+      "url": "https://download.blender.org/release/Blender5.2/blender-5.2.3-linux-x64.tar.xz",
+      "sha256": "78486c018b4443efe5e75ab54c290ed8c15abafd249b862c2c9ce2530a918eec",
+      "license": "GPL-3.0-or-later",
+      "status": "resolved",
+      "provenance": "https://download.blender.org/release/Blender5.2/blender-5.2.3.sha256",
+      "abi": "Linux ELF64 AMD64 (e_machine=62); Blender executable maximum required GLIBC_2.28 symbol, checked with readelf",
+      "license_url": "https://raw.githubusercontent.com/blender/blender/v5.2.3/COPYING",
+      "license_sha256": "19e6f4b541772f9d7b98a52bdbca3ebd5ef9e404956a9a6de68bfc3c1a178387",
+      "source": {
+        "filename": "blender-5.2.3.tar.xz",
+        "url": "https://download.blender.org/source/blender-5.2.3.tar.xz",
+        "sha256": "5c66e0ab20da26d684deecfc27e84c4d39e456daaa9112b47eeb45d0e0283876",
+        "version": "5.2.3",
+        "provenance": "https://download.blender.org/source/"
+      },
+      "verification": {
+        "official_checksum_checked": true,
+        "sha256_download_matched": true,
+        "native_execution": "pending target gate",
+        "mac_dmg_download": "not applicable"
+      }
+    },
+    {
+      "name": "blender-source",
+      "version": "5.2.3",
+      "filename": "blender-5.2.3.tar.xz",
+      "url": "https://download.blender.org/source/blender-5.2.3.tar.xz",
+      "sha256": "5c66e0ab20da26d684deecfc27e84c4d39e456daaa9112b47eeb45d0e0283876",
+      "license": "GPL-3.0-or-later",
+      "status": "resolved",
+      "provenance": "https://download.blender.org/source/",
+      "license_url": "https://raw.githubusercontent.com/blender/blender/v5.2.3/COPYING",
+      "license_sha256": "19e6f4b541772f9d7b98a52bdbca3ebd5ef9e404956a9a6de68bfc3c1a178387",
+      "verification": {
+        "sha256_download_matched": true
+      }
+    },
+    {
+      "name": "nlohmann-json",
+      "version": "3.11.3",
+      "filename": "json.tar.xz",
+      "url": "https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz",
+      "sha256": "d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d",
+      "license": "MIT",
+      "status": "resolved",
+      "provenance": "https://github.com/nlohmann/json/releases/tag/v3.11.3",
+      "license_url": "https://raw.githubusercontent.com/nlohmann/json/v3.11.3/LICENSE.MIT",
+      "license_sha256": "86b998c792894ccb911a1cb7994f7a9652894e7a094c0b5e45be2f553f45cf14"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.1",
+      "filename": "zlib-1.3.1.tar.gz",
+      "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "license": "Zlib",
+      "status": "resolved",
+      "provenance": "https://zlib.net/",
+      "license_url": "https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE",
+      "license_sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+    },
+    {
+      "name": "utf8proc",
+      "version": "2.10.0",
+      "filename": "utf8proc-2.10.0.tar.gz",
+      "url": "https://codeload.github.com/JuliaStrings/utf8proc/tar.gz/refs/tags/v2.10.0",
+      "sha256": "6f4f1b639daa6dca9f80bc5db1233e9cbaa31a67790887106160b33ef743f136",
+      "license": "MIT AND Unicode-DFS-2015",
+      "status": "resolved",
+      "unicode_version": "16.0.0",
+      "provenance": "https://github.com/JuliaStrings/utf8proc/releases/tag/v2.10.0",
+      "license_url": "https://raw.githubusercontent.com/JuliaStrings/utf8proc/v2.10.0/LICENSE.md",
+      "license_sha256": "3b510150d34f248a221bb88e1d811238d6c6c18b51231822c42974c39bb07256",
+      "unicode_license_reference": "https://spdx.org/licenses/Unicode-DFS-2015.html",
+      "verification": {
+        "sha256_download_matched": true
+      }
+    }
+  ],
+  "resolved_on": "2026-10-30"
+}

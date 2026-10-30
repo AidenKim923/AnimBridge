@@ -1,0 +1,104 @@
+name: cross-platform
+
+# Prepared but paused. Running jobs requires explicit dispatch AND repository opt-in.
+# macOS execution remains on hold; do not set ANIMBRIDGE_ENABLE_NATIVE_CI until authorized.
+on:
+  workflow_dispatch:
+    inputs:
+      run_jobs:
+        description: Run the prepared native matrix after explicit authorization
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    if: ${{ inputs.run_jobs && vars.ANIMBRIDGE_ENABLE_NATIVE_CI == 'true' }}
+    name: ${{ matrix.os }} (${{ matrix.profile }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15, ubuntu-22.04, ubuntu-24.04]
+        profile: [production, harness]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12.10"
+      - name: Install Linux build libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev libssl-dev zstd
+      - name: Install constrained build and test tools
+        run: |
+          python -m pip install --constraint packaging/ci-constraints.txt pip setuptools wheel cmake ninja
+          python -m pip install --constraint packaging/ci-constraints.txt --no-build-isolation -e ".[test]"
+      - name: Configure and compile distribution mode
+        shell: bash
+        run: |
+          if [ "${{ matrix.profile }}" = harness ]; then hooks=ON; else hooks=OFF; fi
+          cmake -S . -B _verify/ci-distribution -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DANIMBRIDGE_BUILD_DESKTOP=ON -DANIMBRIDGE_ENABLE_SOURCE_FALLBACK=OFF -DANIMBRIDGE_ENABLE_UI_TEST_HOOKS="$hooks"
+          cmake --build _verify/ci-distribution --config Release --parallel
+      - name: Separate development contract tests
+        shell: bash
+        run: |
+          cmake -S . -B _verify/ci-development-test -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DANIMBRIDGE_BUILD_DESKTOP=ON -DANIMBRIDGE_ENABLE_SOURCE_FALLBACK=ON -DANIMBRIDGE_ENABLE_UI_TEST_HOOKS=OFF
+          cmake --build _verify/ci-development-test --config Release --parallel
+          ctest --test-dir _verify/ci-development-test -C Release --output-on-failure
+      - name: Non-engine Python tests
+        run: python -m pytest tests -q -m "not blender and not unity and not unreal" -p no:cacheprovider
+      - name: Validate selected runtime lock
+        shell: bash
+        run: |
+          case "${{ matrix.os }}" in windows-*) target=windows;; macos-*) target=macarm64;; ubuntu-22.04) target=ubuntu22.04;; ubuntu-24.04) target=ubuntu24.04;; esac
+          python packaging/stage.py check-lock --target "$target" --require-resolved
+          python packaging/stage.py build-proof --target "$target" --build-dir _verify/ci-distribution --profile "${{ matrix.profile }}" --output _verify/build-proof.json
+      - name: Save build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.os }}-${{ matrix.profile }}
+          path: |
+            _verify/build-proof.json
+            _verify/ci-distribution/CMakeCache.txt
+            _verify/ci-distribution/**/flags.make
+            _verify/ci-distribution/*.vcxproj
+            _verify/ci-distribution/build.ninja
+            _verify/ci-development-test/Testing/Temporary/LastTest.log
+          if-no-files-found: error
+
+  compare-production-harness:
+    if: ${{ inputs.run_jobs && vars.ANIMBRIDGE_ENABLE_NATIVE_CI == 'true' }}
+    needs: build-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12.10"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: native-*
+          path: evidence
+      - name: Compare frozen distribution build inputs
+        shell: bash
+        run: |
+          for os in windows-latest macos-15 ubuntu-22.04 ubuntu-24.04; do
+            python packaging/stage.py compare-provenance --production "evidence/native-$os-production/build-proof.json" --harness "evidence/native-$os-harness/build-proof.json"
+          done
+
+# This matrix compiles eight distribution variants and runs separate development
+# contracts. It does not claim G1/G2/G3/G4, bundled-runtime execution, signing or
+# notarization. Build-Deb.sh/Build-Mac.sh and Verify-Distribution.py handle those
+# candidate payloads on explicitly prepared machines. Production/harness bundles
+# require compare-provenance with the same frozen source and runtime lock.

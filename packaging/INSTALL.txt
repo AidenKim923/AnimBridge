@@ -1,0 +1,62 @@
+AnimBridge - Windows x64 offline distribution
+
+The release version is recorded in distribution-manifest.json.
+Third-party components retain their own licenses and source requirements.
+
+This package contains the AnimBridge desktop application, Python 3.12.10,
+NumPy 2.2.6, PyYAML 6.0.2, Blender 5.2.3 LTS, and WebView2 Fixed Runtime
+156.0.4314.50. There is no first-run download. Do not move individual files
+out of this folder: backend/, ui/, runtime/, licenses/ and sources/ belong
+to the distribution.
+
+Setup: run AnimBridge-<version>-Setup-x64.exe. It installs for the current user
+and does not require administrator access. Start AnimBridge from the Start
+menu. The installer is unsigned; the package's SHA256SUMS.txt lets you
+check file integrity but is not a publisher signature.
+Windows security policies, including Smart App Control, may block unsigned
+programs; those policy configurations have not been verified.
+
+Portable: extract the entire Portable-x64.zip into a writable local folder.
+On first use, run Prepare-Portable.cmd. It grants the access required for
+the bundled WebView2 runtime and starts the app. Subsequent starts can use
+AnimBridge.exe. Do not run directly from the ZIP or from a network share.
+Portable describes the relocatable application files; user cache and
+WebView2 profile data normally remain in the user's Local AppData folder.
+
+System: Windows 10 1809 / Windows 11 x64; a GPU and drivers meeting the
+bundled Blender requirements. See https://www.blender.org/download/requirements/.
+32-bit Windows and Windows ARM64 are not verified targets.
+
+Keep data/cache and project paths reasonably short. A verification run
+with a deeply nested cache failed near the classic Windows 260-character
+path limit. Arbitrarily long paths are not a verified capability.
+
+Unity Editor and Unreal Editor are separately licensed products. Their
+editors, project assets, and licenses are not supplied here. Install the
+relevant editor separately and choose it in AnimBridge when its workflow
+requires one. Existing editor projects must be writable by their owner.
+Verified editor versions are Unity 6000.4.7f1 and Unreal Engine 5.8.2.
+Enable the Python Editor Script Plugin in the Unreal project for workflows
+that execute Python scripts in the Unreal Editor. Other editor versions
+have not been verified.
+
+Before installing a future version, close AnimBridge and uninstall the
+previous version. Preserve any files you created yourself. Install into
+an empty program directory, or select a new empty directory, to prevent
+old runtime/backend files from mixing with the new release. Do not update
+by copying a new payload over an existing installation.
+
+Uninstalling removes installed program files. It does not delete original
+projects, exports, or user cache/profile directories. A portable copy can
+be removed by deleting its extracted application folder after closing it.
+
+Third-party licensing notices and Microsoft runtime terms are in licenses/.
+The matching unmodified Blender source archive is supplied in sources/.
+Keep sources/ and all license notices with redistributions. Blender's
+source archive also contains dependency build recipes, patches and source
+URLs; see licenses/SOURCE-AVAILABILITY.txt. Blender and the other bundled
+components retain their own licenses. AnimBridge invokes Blender as a
+separate executable.
+
+The bundled Fixed WebView2 runtime does not update itself. Future release
+packages must update and revalidate it for security fixes.

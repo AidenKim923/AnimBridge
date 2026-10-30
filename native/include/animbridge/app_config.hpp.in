@@ -1,0 +1,16 @@
+#pragma once
+#include <string_view>
+
+namespace animbridge::app {
+inline constexpr std::string_view Version = "@PROJECT_VERSION@";
+inline constexpr std::string_view GithubUrl = "@ANIMBRIDGE_github_URL@";
+inline constexpr std::string_view FairyUrl = "@ANIMBRIDGE_fairy_URL@";
+inline constexpr std::string_view GithubSponsorsUrl = "@ANIMBRIDGE_githubSponsors_URL@";
+
+inline std::string_view externalLinkUrl(std::string_view link) {
+    if (link == "github") return GithubUrl;
+    if (link == "fairy") return FairyUrl;
+    if (link == "githubSponsors") return GithubSponsorsUrl;
+    return {};
+}
+}

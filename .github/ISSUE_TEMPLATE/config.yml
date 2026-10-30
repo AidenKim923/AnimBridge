@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Usage and limitations / 사용법과 검증 범위
+    url: https://github.com/AidenKim923/AnimBridge/blob/main/README.md
+    about: Check supported workflows and platform verification before reporting a problem.
+  - name: Security policy / 보안 제보
+    url: https://github.com/AidenKim923/AnimBridge/blob/main/SECURITY.md
+    about: Follow the private reporting guidance; do not post exploit details publicly.

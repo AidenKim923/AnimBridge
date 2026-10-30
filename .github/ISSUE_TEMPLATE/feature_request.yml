@@ -1,0 +1,29 @@
+name: Feature request / 기능 제안
+description: Suggest a workflow, preview, or usability improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "For a new animation format or engine integration, use the Format or engine request form. English or Korean is welcome."
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like AnimBridge to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would you use it? / 필요한 이유
+      description: Describe your animation workflow and the obstacle you encounter.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround and alternatives
+  - type: textarea
+    id: ideas
+    attributes:
+      label: Suggested behavior or references

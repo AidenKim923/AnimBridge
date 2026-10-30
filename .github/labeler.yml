@@ -1,0 +1,12 @@
+build:
+  - changed-files:
+      - all-globs-to-all-files:
+          - "{packaging/**,.github/**,CMakeLists.txt,CMakePresets.json,**/*.cmake}"
+documentation:
+  - changed-files:
+      - all-globs-to-all-files:
+          - "{docs/**,**/*.md}"
+translation:
+  - changed-files:
+      - all-globs-to-all-files:
+          - "native/ui/locales/**"

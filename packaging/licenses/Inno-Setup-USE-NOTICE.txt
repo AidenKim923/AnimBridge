@@ -1,0 +1,22 @@
+Inno Setup 6.7.4 compiler use context - checked 2026-10-30
+
+The original license bundled with Inno Setup 6.7.4 is preserved without
+changes in Inno-Setup-LICENSE.txt. Its copyright dates are 1997-2026 and
+2000-2026. The "jr-2020" text is part of the author's contact address.
+The bundled license text was compared with the current official license
+at https://jrsoftware.org/files/is/license.txt and its content matches.
+
+This compiler displayed "Non-commercial use only" because no commercial
+license key was installed. This task prepares a personal same-user device
+installation package; commercial publishing is outside its scope.
+
+The current official commercial-license FAQ requests that commercial
+users purchase licenses, while explaining that purchase is not strictly
+required under the software license. It does not request purchase from
+non-commercial users. Running an installer built by Inno Setup does not
+itself count as using the compiler under that FAQ.
+See the current publisher terms before future commercial build work:
+https://jrsoftware.org/isorder.php
+
+This notice describes the verified publisher terms and this build's use
+context; it does not replace or modify the original Inno Setup license.

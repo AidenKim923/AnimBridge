@@ -1,0 +1,61 @@
+// GitHub icon: Feather (MIT); see packaging/licenses/Feather-LICENSE.txt.
+const paths = {
+  github:
+    'M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22',
+  home: 'M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
+  library: 'M4 6c0-4 16-4 16 0S4 10 4 6Zm0 0v6c0 4 16 4 16 0V6M4 12v6c0 4 16 4 16 0v-6',
+  transfer: 'M4 7h16l-4-4M20 17H4l4 4M20 7l-4 4M4 17l4-4',
+  chart: 'M5 20V11M12 20V4M19 20v-7',
+  settings:
+    'm9 3-1 3-3 1-2 4 2 2v3l3 2 1 3h6l1-3 3-2v-3l2-2-2-4-3-1-1-3Zm3 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
+  folder: 'M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z',
+  folderOpen: 'M3 9V5h7l3 3h8v3M3 9l1 11h15l3-9H7L4 20',
+  search: 'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm5 12 6 6',
+  filter: 'M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6',
+  plus: 'M12 4v16M4 12h16',
+  close: 'm5 5 14 14M19 5 5 19',
+  chevron: 'm9 5 7 7-7 7',
+  down: 'm5 9 7 7 7-7',
+  back: 'm12 5-7 7 7 7M5 12h15',
+  check: 'm5 12 4 4L19 6',
+  upload: 'M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6',
+  download: 'M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4',
+  clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4v6l4 2',
+  star: 'm12 3 3 6 6 1-4.5 4.5L18 21l-6-3-6 3 1.5-6.5L3 10l6-1Z',
+  grid: 'M3 3h7v7H3Zm11 0h7v7h-7ZM3 14h7v7H3Zm11 0h7v7h-7Z',
+  list: 'M9 5h12M9 12h12M9 19h12M3 5h1M3 12h1M3 19h1',
+  play: 'm8 4 12 8-12 8Z',
+  pause: 'M8 4v16M16 4v16',
+  repeat: 'M4 8a4 4 0 0 1 4-4h11m-4-3 4 3-4 3M20 16a4 4 0 0 1-4 4H5m4 3-4-3 4-3',
+  reset: 'M4 10a8 8 0 1 1 1 8M4 3v7h7',
+  expand: 'M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5',
+  bone: 'M5 3a2 2 0 0 0-2 2c-3 1-2 5 1 5l10 10c0 3 4 4 5 1a2 2 0 0 0 2-2c3-1 2-5-1-5L10 4C10 1 6 0 5 3Z',
+  person: 'M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM12 9v7M5 12l7-3 7 3M12 16l-4 6M12 16l4 6',
+  link: 'm10 8 3-3a4 4 0 0 1 6 6l-3 3M14 16l-3 3a4 4 0 0 1-6-6l3-3m0 6 8-8',
+  monitor: 'M3 3h18v14H3Zm9 14v4m-5 0h10',
+  cube: 'm12 2 9 5v10l-9 5-9-5V7Zm0 10v10M3 7l9 5 9-5M7.5 4.5l9 5',
+  info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 7v7m0-10v.1',
+  alert: 'm12 3 10 18H2Zm0 6v5m0 3v.1',
+  file: 'M5 3h9l5 5v13H5Zm9 0v5h5M8 13h8M8 17h6',
+  copy: 'M9 9h12v12H9ZM15 6V3H3v12h3',
+  lock: 'M5 10h14v11H5Zm3 0V6a4 4 0 0 1 8 0v4m-4 5v2',
+  shield: 'm12 2 9 4v6c0 5-5 8-9 10-4-2-9-5-9-10V6Zm-4 10 3 3 5-6',
+  save: 'M3 3h15l3 3v15H3Zm4 0v7h10V3M7 21v-7h10v7',
+  trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Zm10-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
+  offline: 'M4 4l16 16M3 10a14 14 0 0 1 4-3m4-1a14 14 0 0 1 10 4M7 14a8 8 0 0 1 7-1M11 18l1 1 1-1',
+  code: 'm8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18',
+  arrow: 'M4 12h16m-6-6 6 6-6 6',
+  more: 'M5 12h.1M12 12h.1M19 12h.1',
+  bridge: 'M3 20V5M21 20V5M3 10c6 10 12 10 18 0M8 15v5M16 15v5M3 20h18',
+  heart:
+    'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
+  checkCircle: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-5 10 3 3 7-7',
+  stop: 'M5 5h14v14H5Z',
+  database: 'M4 5c0-4 16-4 16 0S4 9 4 5Zm0 0v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7',
+};
+export function icon(name, cls = '') {
+  return `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name] || paths.file}"/></svg>`;
+}
+export const folderArt = (name = '') =>
+  `<div class="folder-art" aria-hidden="true">${name ? icon(name) : ''}</div>`;

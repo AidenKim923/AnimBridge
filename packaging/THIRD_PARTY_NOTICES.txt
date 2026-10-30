@@ -1,0 +1,94 @@
+AnimBridge third-party notices
+
+AnimBridge-owned source is licensed under the MIT License in the root
+LICENSE file. Third-party components retain their own licenses.
+
+Source repository and source-only archives
+
+GitHub community templates and labeling workflows are adapted from Filee.
+Copyright (c) 2026 Myeonggu Kim (KnifeLemon) and Filee contributors.
+License: MIT. Full license: packaging/licenses/Filee-LICENSE.txt.
+Source: https://github.com/KnifeLemon/Filee/tree/main/.github
+AnimBridge-specific forms, paths, ownership, and release categories were added.
+
+utf8proc 2.10.0: Copyright Public Software Group, Steven G. Johnson,
+and contributors. License: MIT, with Unicode data notices.
+Full original notices: packaging/licenses/utf8proc-LICENSE.txt in source
+archives; licenses/utf8proc-LICENSE.txt in binary distributions.
+Source: https://github.com/JuliaStrings/utf8proc/tree/v2.10.0
+The native application statically links this library when built.
+
+Feather GitHub icon: Copyright (c) 2013-2023 Cole Bemis.
+License: MIT. The path in native/ui/icons.js matches the upstream icon.
+Full license: packaging/licenses/Feather-LICENSE.txt in source archives;
+licenses/Feather-LICENSE.txt in installer and portable distributions.
+Source: https://raw.githubusercontent.com/feathericons/feather/main/icons/github.svg
+License source: https://raw.githubusercontent.com/feathericons/feather/main/LICENSE
+
+Source-only archives do not include runtimes or third-party source
+archives. The components and payload paths below describe Windows runtime
+distributions assembled by packaging/Build-Distribution.ps1.
+
+Windows installer and portable payloads
+
+This is an aggregate distribution. Each component retains its own license.
+No Microsoft runtime terms restrict the separately supplied GPL Blender
+source or your rights under Blender's GPL license.
+
+Python 3.12.10: Copyright Python Software Foundation and contributors.
+License: PSF License and the additional notices in licenses/Python-LICENSE.txt.
+Original: https://www.python.org/downloads/release/python-31210/
+
+NumPy 2.2.6: Copyright NumPy Developers.
+License: BSD-3-Clause and bundled library notices (including OpenBLAS).
+Full notice: runtime/python/Lib/site-packages/numpy-2.2.6.dist-info/LICENSE.txt
+Original: https://pypi.org/project/numpy/2.2.6/
+
+PyYAML 6.0.2: Copyright Kirill Simonov and contributors.
+License: MIT. Full notice: runtime/python/Lib/site-packages/PyYAML-6.0.2.dist-info/LICENSE
+Original: https://pypi.org/project/PyYAML/6.0.2/
+
+Blender 5.2.3 LTS: Copyright Blender Foundation and contributors.
+License: GNU GPL 3.0 or later; bundled dependencies have additional licenses.
+Full notices: runtime/blender/copyright.txt and runtime/blender/license/.
+GPL 3.0 text: licenses/Blender-GPL-3.0.txt.
+Original Blender source license notice: licenses/Blender-COPYING.txt.
+Matching source: sources/blender-5.2.3.tar.xz.
+Original binaries and checksums: https://download.blender.org/release/Blender5.2/
+
+The bundled Windows FFmpeg avcodec-62.dll reports "GPL version 2 or later"
+and enables GPL, libx264 and libx265. This actual build is GPL-enabled;
+the upstream aggregate LGPL classification must not be read as applying
+to this FFmpeg configuration. Original upstream notices remain intact.
+Additional dependency sources: see SOURCE-AVAILABILITY.txt and the release's
+AnimBridge-1.0.2-Corresponding-Sources.zip asset.
+
+Microsoft Edge WebView2 Fixed Version Runtime 156.0.4314.50 and WebView2 SDK:
+SDK version: 1.0.3650.58 (WebView2LoaderStatic.lib linked into AnimBridge).
+Copyright Microsoft Corporation. All rights reserved.
+Runtime terms: licenses/WebView2-Fixed-LICENSE.txt
+SDK terms: licenses/WebView2-SDK-LICENSE.txt
+Open-source component notices are embedded in the unmodified runtime; run
+runtime/webview2/show_third_party_software_licenses.bat to view them.
+The runtime may collect data as described in its Microsoft license terms
+and privacy statement: https://aka.ms/privacy
+Microsoft third-party source service: https://thirdpartysource.microsoft.com/
+
+nlohmann/json 3.11.3: Copyright Niels Lohmann.
+License: MIT. Full license: licenses/nlohmann-json-LICENSE.txt.
+Source: sources/json.tar.xz.
+
+zlib 1.3.1: Copyright Jean-loup Gailly and Mark Adler.
+License: zlib. Full license: licenses/zlib-LICENSE.txt.
+Source: sources/zlib-1.3.1.tar.gz.
+
+Microsoft Visual C++ runtime files supplied with Python, Blender and
+WebView2 are preserved in their original app-local layouts. The AnimBridge
+native executable uses the statically linked MSVC runtime.
+
+Installer created with Inno Setup by Jordan Russell / Martijn Laan.
+Copyright (C) 1997-2026 Jordan Russell.
+Portions Copyright (C) 2000-2026 Martijn Laan.
+https://jrsoftware.org/
+Full notice: licenses/Inno-Setup-LICENSE.txt.
+Current compiler-use context: licenses/Inno-Setup-USE-NOTICE.txt.

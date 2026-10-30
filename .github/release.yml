@@ -1,0 +1,16 @@
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: Animation formats and engine integrations
+      labels: [formats, engine]
+    - title: Features and workflow improvements
+      labels: [feature, enhancement]
+    - title: Fixes
+      labels: [bug, fix]
+    - title: Translations and documentation
+      labels: [translation, documentation]
+    - title: Build and maintenance
+      labels: [build, ci, dependencies, chore]
+    - title: Other changes
+      labels: ["*"]

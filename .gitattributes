@@ -1,0 +1,26 @@
+* text=auto
+*.py text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.cs text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.h text eol=lf
+*.mm text eol=lf
+*.mjs text eol=lf
+*.sh text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.in text eol=lf
+*.plist text eol=lf
+*.entitlements text eol=lf
+*.desktop text eol=lf
+*.ps1 text eol=lf
+*.iss text eol=lf
+packaging/licenses/* -text
+*.fbx binary

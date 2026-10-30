@@ -1,0 +1,53 @@
+Source availability and distribution scope
+
+AnimBridge-owned source is licensed under the MIT License in the repository's
+root LICENSE file. Third-party components retain their own licenses.
+
+The source repository and source-only archives do not include Python,
+Blender or WebView2 runtimes, or the third-party source archives described
+below. The Feather GitHub icon in native/ui/icons.js is covered by the MIT
+notice in packaging/licenses/Feather-LICENSE.txt.
+
+Windows installer and portable payloads
+
+The paths below refer to runtime distributions assembled by
+packaging/Build-Distribution.ps1, not to files included in source-only
+archives. A binary release requires a separate review of its bundled
+licenses and corresponding-source obligations.
+
+The distribution includes the official, unmodified Blender 5.2.3 source
+archive in sources/blender-5.2.3.tar.xz. Its SHA256 is recorded in
+distribution-manifest.json and dependencies.lock.json. This source was
+obtained directly from https://download.blender.org/source/blender-5.2.3.tar.xz.
+The archive contains Blender's source, dependency build scripts and patches.
+The exact external dependency versions, source URLs, licenses and hashes
+are recorded in its build_files/build_environment/cmake/versions.cmake.
+A copy of that file is next to this notice for convenient inspection.
+Blender's build instructions are at https://developer.blender.org/docs/handbook/building_blender/.
+
+Blender is an unmodified separate executable and is licensed under GNU
+GPL 3.0 or later. The GPL text and full third-party license notices are
+preserved in this distribution. Keep the matching source archive and
+notices available alongside every binary distribution. Do not distribute
+the installer while withholding its matching source or license notices.
+
+This source archive is Blender's published source release; it does not
+pre-download every external dependency source referenced by its build
+recipes. Rebuilding Blender therefore needs those upstream sources and
+build tools. No claim is made that the included sources form a fully
+offline Blender build environment. The Windows v1.0.2 release additionally
+provides the pinned GPL/LGPL and MPL dependency source archives identified
+in that recipe, plus supporting NumPy/OpenBLAS build sources, in:
+https://github.com/AidenKim923/AnimBridge/releases/download/v1.0.2/AnimBridge-1.0.2-Corresponding-Sources.zip
+The source asset includes its own source URLs, checksums and build notes.
+Keep this asset available alongside the binary release. Rebuilding still
+requires the documented toolchains and other upstream build dependencies.
+
+nlohmann/json and zlib source archives matching the native build are also
+included in sources/. Python, NumPy and PyYAML have permissive licenses;
+their complete license and binary attribution files are retained.
+
+WebView2 is a separate Microsoft redistributable. Microsoft supplies
+third-party source via https://thirdpartysource.microsoft.com/ as described
+in the runtime's license terms. Its runtime binaries are not placed under
+Blender's GPL. Do not remove the bundled Microsoft license or notices.

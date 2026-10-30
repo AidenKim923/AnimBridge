@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "platform": "windows-x64",
+  "assets": [
+    {
+      "name": "python",
+      "version": "3.12.10",
+      "filename": "python-3.12.10-embed-amd64.zip",
+      "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip",
+      "sha256": "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3",
+      "provenance": "https://www.python.org/downloads/release/python-31210/"
+    },
+    {
+      "name": "numpy",
+      "version": "2.2.6",
+      "filename": "numpy-2.2.6-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/36/fa/8c9210162ca1b88529ab76b41ba02d433fd54fecaf6feb70ef9f124683f1/numpy-2.2.6-cp312-cp312-win_amd64.whl",
+      "sha256": "c1f9540be57940698ed329904db803cf7a402f3fc200bfe599334c9bd84a40b2",
+      "provenance": "https://pypi.org/pypi/numpy/2.2.6/json"
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.2",
+      "filename": "PyYAML-6.0.2-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/0c/e8/4f648c598b17c3d06e8753d7d13d57542b30d56e6c2dedf9c331ae56312e/PyYAML-6.0.2-cp312-cp312-win_amd64.whl",
+      "sha256": "7e7401d0de89a9a855c839bc697c079a4af81cf878373abd7dc625847d25cbd8",
+      "provenance": "https://pypi.org/pypi/PyYAML/6.0.2/json"
+    },
+    {
+      "name": "blender",
+      "version": "5.2.3 LTS",
+      "filename": "blender-5.2.3-windows-x64.zip",
+      "url": "https://download.blender.org/release/Blender5.2/blender-5.2.3-windows-x64.zip",
+      "sha256": "723f08a4401502561eb763cdeacf8745b31e5f3f154d287d3830d97cf75dc2fb",
+      "provenance": "https://download.blender.org/release/Blender5.2/blender-5.2.3.sha256"
+    },
+    {
+      "name": "blender-source",
+      "version": "5.2.3",
+      "filename": "blender-5.2.3.tar.xz",
+      "url": "https://download.blender.org/source/blender-5.2.3.tar.xz",
+      "sha256": "5c66e0ab20da26d684deecfc27e84c4d39e456daaa9112b47eeb45d0e0283876",
+      "provenance": "https://download.blender.org/source/"
+    },
+    {
+      "name": "webview2",
+      "version": "156.0.4314.50",
+      "filename": "Microsoft.WebView2.FixedVersionRuntime.156.0.4314.50.x64.cab",
+      "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/bd9305d7-a7d7-44fe-b8bf-aefad5d6cdb5/Microsoft.WebView2.FixedVersionRuntime.156.0.4314.50.x64.cab",
+      "sha256": "fcf0cd55f7c6e8efced05114372de8b8ffc9032c0296d16e060d260637dfe5f2",
+      "provenance": "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
+    },
+    {
+      "name": "webview2-sdk",
+      "version": "1.0.3650.58",
+      "filename": "microsoft.web.webview2.1.0.3650.58.nupkg",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.3650.58/microsoft.web.webview2.1.0.3650.58.nupkg",
+      "sha256": "911a472128c82ac8baa0c486c23342cc9dd6e7dc50d754e676726642ca065c60",
+      "provenance": "https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3650.58"
+    },
+    {
+      "name": "inno-setup-build-tool",
+      "version": "6.7.4",
+      "filename": "innosetup-6.7.4.exe",
+      "url": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe",
+      "sha256": "a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c",
+      "compiler_sha256": "f02fa0e5f237b47d7ed1edae9b991866ec94fe02af61eb6a73e94f92fe8e0604",
+      "provenance": "https://jrsoftware.org/isdl.php"
+    },
+    {
+      "name": "nlohmann-json",
+      "version": "3.11.3",
+      "filename": "json.tar.xz",
+      "url": "https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz",
+      "sha256": "d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d",
+      "provenance": "https://github.com/nlohmann/json/releases/tag/v3.11.3"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.1",
+      "filename": "zlib-1.3.1.tar.gz",
+      "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "provenance": "https://zlib.net/"
+    }
+  ]
+}

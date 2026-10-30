@@ -1,0 +1,37 @@
+name: Format or engine request / 포맷·엔진 지원 요청
+description: Request an animation format, rig, or engine integration.
+title: "[Format]: "
+labels: [formats]
+body:
+  - type: input
+    id: source
+    attributes:
+      label: Source format and application version
+      placeholder: "File extension, engine or DCC application, version"
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target format and application version
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Required animation data
+      description: Describe skeletal tracks, rig type, root motion, events, frame rate, or other data that must be preserved.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Documentation and shareable sample
+      description: Link to format documentation or an open-source reader. Use a small synthetic sample, not a commercial asset package.
+  - type: checkboxes
+    id: sharing
+    attributes:
+      label: Sample permissions
+      options:
+        - label: I have permission to publicly share any attached files and have removed private data.
+          required: true

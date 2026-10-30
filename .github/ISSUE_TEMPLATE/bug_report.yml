@@ -1,0 +1,65 @@
+name: Bug report / 버그 신고
+description: Report an AnimBridge conversion, preview, or desktop problem.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "English or Korean is welcome. Share only synthetic or redistributable samples. Remove personal paths and secrets from logs. For security issues, follow SECURITY.md."
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened? / 발생한 문제
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 기대한 동작
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 재현 절차
+      placeholder: "Open a package → select a clip → preview or export…"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AnimBridge version or commit
+      description: Include whether this is a source build, installer, or portable build.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and CPU architecture
+      placeholder: "Windows 11 x64 / Ubuntu 24.04 x64 / macOS arm64"
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Affected workflow
+      options: [Package browsing, Preview, Original extraction, Unity to Unreal, Unreal to Unity, Installation or startup, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: engines
+    attributes:
+      label: Unity, Unreal, and Blender versions
+      description: Include the editor versions actually used and connection status. Write N/A for unused engines.
+    validations:
+      required: true
+  - type: textarea
+    id: animation
+    attributes:
+      label: Animation and rig details
+      description: Input/output format, Humanoid or Generic, skeleton source, FPS, duration, root motion, and affected bones.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or a minimal sample
+      description: Paste relevant errors or a sanitized report. Do not upload commercial packages, private projects, or personal filesystem paths.

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; child-src 'none'; form-action 'none'"
+    />
+    <title>AnimBridge</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div class="window-resize-regions" aria-hidden="true">
+      <div data-window-resize="left"></div>
+      <div data-window-resize="right"></div>
+      <div data-window-resize="top"></div>
+      <div data-window-resize="bottom"></div>
+      <div data-window-resize="top-left"></div>
+      <div data-window-resize="top-right"></div>
+      <div data-window-resize="bottom-left"></div>
+      <div data-window-resize="bottom-right"></div>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="drop-overlay" aria-hidden="true">
+      <div class="drop-message">
+        <span class="drop-symbol">↓</span>
+        <h2 data-i18n="ui.454">Drop packages here</h2>
+        <p data-i18n="ui.455">Analyze safely without changing the originals.</p>
+      </div>
+    </div>
+    <dialog id="modal" aria-labelledby="modal-title"></dialog>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

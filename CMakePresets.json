@@ -1,0 +1,33 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "base", "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release", "BUILD_TESTING": "ON",
+        "ANIMBRIDGE_BUILD_DESKTOP": "ON", "ANIMBRIDGE_ENABLE_SOURCE_FALLBACK": "OFF",
+        "ANIMBRIDGE_ENABLE_UI_TEST_HOOKS": "OFF"
+      }
+    },
+    {"name": "windows-release", "inherits": "base", "binaryDir": "${sourceDir}/_verify/cross/windows-release", "architecture": "x64", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"}},
+    {"name": "macos-arm64-release", "inherits": "base", "generator": "Ninja", "binaryDir": "${sourceDir}/_verify/cross/macos-arm64-release", "cacheVariables": {"CMAKE_OSX_ARCHITECTURES": "arm64", "CMAKE_OSX_DEPLOYMENT_TARGET": "14.5"}, "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}},
+    {"name": "linux-release", "inherits": "base", "generator": "Ninja", "binaryDir": "${sourceDir}/_verify/cross/linux-release", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
+    {"name": "windows-harness", "inherits": "windows-release", "binaryDir": "${sourceDir}/_verify/cross/windows-harness", "cacheVariables": {"ANIMBRIDGE_ENABLE_UI_TEST_HOOKS": "ON"}},
+    {"name": "macos-arm64-harness", "inherits": "macos-arm64-release", "binaryDir": "${sourceDir}/_verify/cross/macos-arm64-harness", "cacheVariables": {"ANIMBRIDGE_ENABLE_UI_TEST_HOOKS": "ON"}},
+    {"name": "linux-harness", "inherits": "linux-release", "binaryDir": "${sourceDir}/_verify/cross/linux-harness", "cacheVariables": {"ANIMBRIDGE_ENABLE_UI_TEST_HOOKS": "ON"}},
+    {"name": "development", "inherits": "base", "binaryDir": "${sourceDir}/_verify/cross/development", "cacheVariables": {"ANIMBRIDGE_ENABLE_SOURCE_FALLBACK": "ON"}}
+  ],
+  "buildPresets": [
+    {"name": "windows-release", "configurePreset": "windows-release", "configuration": "Release"},
+    {"name": "macos-arm64-release", "configurePreset": "macos-arm64-release"},
+    {"name": "linux-release", "configurePreset": "linux-release"},
+    {"name": "development", "configurePreset": "development", "configuration": "Release"}
+  ],
+  "testPresets": [
+    {"name": "windows-release", "configurePreset": "windows-release", "configuration": "Release", "output": {"outputOnFailure": true}},
+    {"name": "macos-arm64-release", "configurePreset": "macos-arm64-release", "output": {"outputOnFailure": true}},
+    {"name": "linux-release", "configurePreset": "linux-release", "output": {"outputOnFailure": true}},
+    {"name": "development", "configurePreset": "development", "configuration": "Release", "output": {"outputOnFailure": true}}
+  ]
+}

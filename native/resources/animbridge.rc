@@ -1,0 +1,3 @@
+#include "resource.h"
+
+IDI_ANIMBRIDGE ICON "animbridge.ico"
