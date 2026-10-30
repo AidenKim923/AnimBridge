@@ -4,12 +4,19 @@
 
 <h1 align="center">AnimBridge</h1>
 
+<p align="center">
+  <strong>Animasyonları Unity ile Unreal Engine arasında taşıyın.</strong><br>
+  Bir paketi sürükleyip bırakın, ihtiyacınız olan klipleri önizleyin ve yalnızca bunları dışa aktarın.
+</p>
+
 <div align="center">
 
 [![Version](https://img.shields.io/github/v/tag/AidenKim923/AnimBridge?sort=semver&style=flat-square&color=6d5dfc)](https://github.com/AidenKim923/AnimBridge/tags)
 ![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D6?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-34a853?style=flat-square)](../LICENSE)
 ![15 languages](https://img.shields.io/badge/languages-15-e69e34?style=flat-square)
+
+[Özellikler](#özellikler) · [Nasıl çalışır](#nasıl-çalışır) · [Gereksinimler](#gereksinimler) · [Katkıda bulunma](#katkıda-bulunma) · [Lisans](#lisans)
 
 </div>
 
@@ -21,26 +28,37 @@
 </div>
 <!-- /readme-languages -->
 
-Animasyonları Unity ile Unreal Engine arasında taşıyın.
-Bir paketi bırakın, istediğiniz klipleri seçin ve yalnızca onları dışa aktarın.
-
-Ücretsiz ve açık kaynak · Windows x64
+---
 
 ## Özellikler
 
-- **Bırakın ve inceleyin.** Bir `.unitypackage`, klasör, `.anim` veya `.fbx` bırakın; klipleri arayın, filtreleyin ve seçin.
-- **Dışa aktarmadan önce önizleme.** Önce uygulamada istediğiniz klibi oynatın.
-- **Orijinal veya bake.** Orijinal dosyaları çıkarın ya da değerlendirilmiş animasyonu uyumlu bir iskeletle FBX'e bake edin.
-- **Humanoid ve ikili klipler.** Unity bunları sizin için değerlendirir.
-- **Unity'den Unreal'a ve geri.** Unreal içe aktarma yardımcıları ile Unity'ye geri dönen FBX ve manifest dışa aktarımı.
-- **Yerel ve doğal.** C++20 ana uygulama, yerel WebView2 arayüzü ve Python/Blender dönüştürme süreçleri.
-- **15 dil.** Dil tercihi kaydedilir; Arapça için sağdan sola düzen desteklenir.
-- **Sonsuza dek ücretsiz.** MIT lisanslı.
+- **Bırakın ve inceleyin.** Bir `.unitypackage`, klasör, `.anim` veya `.fbx` açın; istediğiniz klipleri arayın, filtreleyin ve seçin.
+- **Dışa aktarmadan önce önizleyin.** Unreal kurulumu gerektirmeden, klipleri dışa aktarmadan önce uygulamayla birlikte gelen varsayılan karakter üzerinde oynatın. İnsansı ve ikili biçimdeki klipler için Unity Editor gerekir.
+- **Çıktınızı seçin.** Orijinal dosyaları çıkarın veya değerlendirilmiş animasyonu eşleşen bir iskeletle FBX biçimine pişirin.
+- **İki motor arasında köprü kurun.** Unreal içe aktarma yardımcılarının yanı sıra Unity'ye geri aktarım için FBX ve bildirim dosyası dışa aktarımını kullanın.
+- **Yerel olarak çalışın.** Yerel C++ ana uygulaması ve WebView2 kullanıcı arayüzü, Python ve Blender dönüştürme işçi süreçlerini koordine eder.
+- **Kendi dilinizi kullanın.** Uygulama, Arapça için sağdan sola düzen dâhil olmak üzere 15 dili destekler.
+
+## Nasıl çalışır
+
+1. Bir Unity paketini, klasörü, animasyon dosyasını veya FBX dosyasını AnimBridge'e sürükleyip bırakın.
+2. Klipleri arayıp seçin, ardından uygulamada önizleyin.
+3. Orijinal dosyaları çıkarın veya seçilen animasyonları FBX biçimine pişirin.
+4. Sağlanan motor yardımcılarıyla çıktıyı hedef iş akışınıza aktarın.
+
+## Gereksinimler
+
+- **Windows x64.** Birlikte gelen Blender sürümünün gereksinimlerini karşılayan bir GPU ve sürücülerle Windows 10 1809 veya Windows 11.
+- **Unity Editor**, insansı ve ikili biçimdeki klipleri değerlendirmek için gereklidir. Windows'ta AnimBridge, Unity Hub üzerinden yüklenmiş bir Unity Editor'a bağlanabilir.
+- **Unreal Editor**, Unreal içe aktarma iş akışları için gereklidir; Python yardımcılarını kullanırken Python Editor Script Plugin eklentisini etkinleştirin.
+
+Paketle sunulan yükleyici ve taşınabilir sürüm kurulum ayrıntıları, doğrulanmış editör sürümleri ve üçüncü taraf bildirimleri için [kurulum notlarına](../packaging/INSTALL.txt) bakın. Editörler ve lisansları pakete dâhil değildir.
 
 ## Katkıda bulunma
 
-[CONTRIBUTING.md](../CONTRIBUTING.md)
+Katkılarınızı bekliyoruz. [CONTRIBUTING.md](../CONTRIBUTING.md) dosyasına ve [güvenlik politikasına](../SECURITY.md) bakın.
 
 ## Lisans
 
-[MIT](../LICENSE). Blender ve WebView2 gibi üçüncü taraf bileşenler kendi lisanslarını korur; [üçüncü taraf bildirimlerine](../packaging/THIRD_PARTY_NOTICES.txt) bakın.
+AnimBridge, [MIT lisansı](../LICENSE) ile sunulur. Blender ve WebView2 dâhil üçüncü taraf bileşenler kendi lisanslarını korur; [üçüncü taraf bildirimlerine](../packaging/THIRD_PARTY_NOTICES.txt) bakın.
+
