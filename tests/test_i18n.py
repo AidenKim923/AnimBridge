@@ -26,7 +26,7 @@ def run_js(script):
 
 def test_catalogs_match_readme_and_preserve_interpolation():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    advertised = {"en", *re.findall(r"\]\(README\.([\w-]+)\.md\)", readme)}
+    advertised = {"en", *re.findall(r"\]\(readmes/README\.([\w-]+)\.md\)", readme)}
     assert advertised == LANGUAGES
     catalogs = run_js("""
       const codes = %s;

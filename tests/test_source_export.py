@@ -14,7 +14,7 @@ def make_source(root):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("0.2.3\n" if name == "VERSION" else "source fixture\n", encoding="utf-8")
     for name in ("native/src/main.cpp", "native/include/animbridge/config.hpp.in",
-                 "README.ko.md", "README.ja.md", "README.pt-BR.md", "native/ui/locales/en.js",
+                 "readmes/README.ko.md", "readmes/README.ja.md", "readmes/README.pt-BR.md", "native/ui/locales/en.js",
                  "src/unityanimbridge/__init__.py", "tests/test_example.py", "tests/viewer_test.mjs",
                  ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/CODEOWNERS",
                  "unity/Editor/Importer.cs", "packaging/licenses/Dependency-LICENSE.txt"):
@@ -44,7 +44,7 @@ def test_source_export_is_allowlisted_and_reproducible(tmp_path):
         assert {".github/ISSUE_TEMPLATE/bug_report.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/CODEOWNERS"} <= exported
         assert {"LICENSE", "README.md", "assets/readme/animbridge-readme-banner.png"} <= exported
         assert not any(path.startswith("docs/") for path in exported)
-        assert {"README.ko.md", "README.ja.md", "README.pt-BR.md"} <= exported
+        assert {"readmes/README.ko.md", "readmes/README.ja.md", "readmes/README.pt-BR.md"} <= exported
         assert not any(path.endswith((".fbx", ".exe", ".dll", ".pyc")) for path in exported)
         assert not any("_verify" in path or ".git/" in path or "egg-info" in path for path in exported)
         assert not any("VERIFICATION" in path or "REMAINING" in path or "OPEN_SOURCE_PREPARATION" in path for path in exported)

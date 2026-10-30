@@ -23,7 +23,7 @@ ROOT_FILES = (
     "assets/readme/animbridge-readme-banner.png",
 )
 SOURCE_PATTERNS = (
-    "README.*.md", ".github/**/*.yml", ".github/*.md", ".github/CODEOWNERS",
+    "readmes/README.*.md", ".github/**/*.yml", ".github/*.md", ".github/CODEOWNERS",
     "native/**/*.cpp", "native/**/*.mm", "native/**/*.hpp", "native/**/*.h", "native/**/*.hpp.in",
     "native/**/*.cmake", "native/**/CMakeLists.txt", "native/**/*.plist", "native/**/*.plist.in", "native/**/*.entitlements",
     "native/**/*.desktop", "native/**/*.sh", "native/**/*.rc",

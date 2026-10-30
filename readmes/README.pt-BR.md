@@ -1,0 +1,46 @@
+<p align="center">
+  <img src="../assets/readme/animbridge-readme-banner.png" alt="AnimBridge: move animation between engines" width="100%">
+</p>
+
+<h1 align="center">AnimBridge</h1>
+
+<div align="center">
+
+[![Version](https://img.shields.io/github/v/tag/AidenKim923/AnimBridge?sort=semver&style=flat-square&color=6d5dfc)](https://github.com/AidenKim923/AnimBridge/tags)
+![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D6?style=flat-square)
+[![MIT License](https://img.shields.io/badge/license-MIT-34a853?style=flat-square)](../LICENSE)
+![15 languages](https://img.shields.io/badge/languages-15-e69e34?style=flat-square)
+
+</div>
+
+<!-- readme-languages -->
+<div align="center">
+
+[English](../README.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [Polski](README.pl.md) · [हिन्दी](README.hi.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · **Português (Brasil)** · [Português (Portugal)](README.pt-PT.md) · [Français](README.fr.md) · [ไทย](README.th.md) · [Türkçe](README.tr.md)
+
+</div>
+<!-- /readme-languages -->
+
+Leve animações entre o Unity e o Unreal Engine.
+Solte um pacote, escolha os clipes que quiser e exporte só eles.
+
+Gratuito e de código aberto · Windows x64
+
+## Recursos
+
+- **Solte e inspecione.** Solte um `.unitypackage`, pasta, `.anim` ou `.fbx` e pesquise, filtre e selecione clipes.
+- **Prévia antes de exportar.** Reproduza qualquer clipe no app antes.
+- **Original ou bake.** Extraia os arquivos originais ou faça o bake da animação avaliada para FBX com um esqueleto compatível.
+- **Clipes Humanoid e binários.** O Unity avalia para você.
+- **Do Unity para o Unreal e de volta.** Auxiliares de importação para o Unreal e exportação de FBX e manifesto de volta para o Unity.
+- **Local e nativo.** Host em C++20 com interface WebView2 local e processos de conversão em Python/Blender.
+- **15 idiomas.** O idioma escolhido fica salvo, e o árabe usa layout da direita para a esquerda.
+- **Grátis para sempre.** Licença MIT.
+
+## Contribuir
+
+[CONTRIBUTING.md](../CONTRIBUTING.md)
+
+## Licença
+
+[MIT](../LICENSE). Componentes de terceiros, como Blender e WebView2, mantêm suas próprias licenças; veja os [avisos de terceiros](../packaging/THIRD_PARTY_NOTICES.txt).
