@@ -255,6 +255,7 @@ function titlebar() {
     <span class="app-version" aria-label="${esc(t('ui.005'))}">${appInfo.version ? `v${esc(appInfo.version)}` : ''}</span>
     <div class="header-links" role="group" aria-label="${esc(t('ui.006'))}">
       <button class="header-link" data-external-link="github" title="GitHub${esc(appInfo.links.github ? t('ui.007') : t('ui.008'))}">${icon('github')}<span>GitHub</span></button>
+      <button class="header-link" data-action="showWelcome" title="${esc(t('ui.498'))}">${icon('info')}<span>${esc(t('ui.498'))}</span></button>
       <button class="header-link" data-action="showSupport" title="${esc(t('ui.009'))}">${icon('heart', 'support-heart')}<span>${esc(t('ui.010'))}</span></button>
     </div>
     ${customFrame ? `<div class="window-controls" role="group" aria-label="${esc(t('ui.011'))}">
@@ -324,6 +325,70 @@ function showSupport() {
   };
   modal.showModal();
   modal.querySelector('[data-close-support]').focus();
+}
+
+// First-run guide: four short steps and a support button. Shown once
+// (remembered in localStorage) and reopened from the "How to use" header link.
+const WelcomeSeenKey = 'animbridge.welcomeSeen';
+const welcomeSteps = [
+  ['folderOpen', 'ui.489', 'ui.490'],
+  ['eye', 'ui.491', 'ui.492'],
+  ['monitor', 'ui.493', 'ui.494'],
+  ['upload', 'ui.495', 'ui.496'],
+];
+
+function welcomeSeen() {
+  try {
+    return localStorage.getItem(WelcomeSeenKey) === '1';
+  } catch {
+    return false; // storage unavailable: showing the guide again is harmless
+  }
+}
+
+function showWelcome() {
+  return new Promise((resolve) => {
+    const caller = document.activeElement;
+    if (modal.open) modal.close();
+    modal.classList.add('welcome-dialog');
+    const steps = welcomeSteps
+      .map(([iconName, title, text], index) => [
+        `<li class="welcome-step">`,
+        `<span class="welcome-step-icon">${icon(iconName)}</span>`,
+        `<div><strong>${index + 1}. ${esc(t(title))}</strong><p>${esc(t(text))}</p></div>`,
+        `</li>`,
+      ].join(''))
+      .join('');
+    modal.innerHTML = [
+      `<h2 id="modal-title">${esc(t('ui.487'))}</h2>`,
+      `<p class="welcome-intro">${esc(t('ui.488'))}</p>`,
+      `<ol class="welcome-steps">${steps}</ol>`,
+      `<div class="welcome-support">`,
+      `<span>${esc(t('ui.497'))}</span>`,
+      `<button class="btn" data-welcome="support">${icon('heart', 'support-heart')}${esc(t('ui.010'))}</button>`,
+      `</div>`,
+      `<div class="actions"><button class="btn primary" data-welcome="start">${esc(t('ui.499'))}</button></div>`,
+    ].join('');
+    const finish = (next) => {
+      try { localStorage.setItem(WelcomeSeenKey, '1'); } catch { /* storage unavailable */ }
+      modal.close();
+      modal.classList.remove('welcome-dialog');
+      modal.onclick = null;
+      modal.oncancel = null;
+      if (next === 'support') showSupport();
+      else if (caller?.isConnected) caller.focus();
+      resolve();
+    };
+    modal.onclick = (event) => {
+      const choice = event.target.closest('[data-welcome]')?.dataset.welcome;
+      if (choice) finish(choice);
+    };
+    modal.oncancel = (event) => {
+      event.preventDefault();
+      finish('start');
+    };
+    modal.showModal();
+    modal.querySelector('[data-welcome="start"]').focus();
+  });
 }
 
 const exclusiveActions = new Set([
@@ -2182,6 +2247,9 @@ async function action(name, el) {
     case 'showSupport':
       showSupport();
       break;
+    case 'showWelcome':
+      showWelcome();
+      break;
     case 'openFiles':
       await openFiles();
       break;
@@ -2814,7 +2882,9 @@ request('getAppInfo')
   .then((info) => {
     appInfo = info;
     render();
-    setTimeout(checkForUpdate, 1500);
+    // Automated UI tests start from a clean profile; keep the guide out of their way.
+    if (!appInfo.provenance?.testHooks && !welcomeSeen()) showWelcome().then(() => setTimeout(checkForUpdate, 500));
+    else setTimeout(checkForUpdate, 1500);
   })
   .catch(() => {});
 async function checkForUpdate() {

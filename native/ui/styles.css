@@ -188,6 +188,69 @@ button .icon + span {
   color: #f5f5f5;
   font-weight: 600;
 }
+/* First-run guide */
+.welcome-dialog {
+  padding: 30px 32px 26px;
+  width: min(520px, calc(100vw - 48px));
+}
+.welcome-dialog h2 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.welcome-intro {
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 18px;
+}
+.welcome-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+.welcome-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.welcome-step-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #262626;
+  border: 1px solid #333;
+  color: #ddd;
+}
+.welcome-step strong {
+  font-size: 13px;
+}
+.welcome-step p {
+  font-size: 12px;
+  color: #9a9a9a;
+  margin-top: 3px;
+  line-height: 1.55;
+}
+.welcome-support {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 12px 14px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #1b1b1b;
+  font-size: 12px;
+  color: #bbb;
+}
+.welcome-dialog .actions {
+  margin-top: 18px;
+}
 .support-close {
   position: absolute;
   right: 18px;

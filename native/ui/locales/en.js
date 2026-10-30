@@ -484,5 +484,18 @@ export default {
   "ui.483": "Unreal Editor is converting the asset in the background. This can take a few minutes.",
   "ui.484": "Show FBX file",
   "ui.485": "Select the Unreal project {project}",
-  "ui.486": "Converted to FBX. Clips added: {count}"
+  "ui.486": "Converted to FBX. Clips added: {count}",
+  "ui.487": "Getting started with AnimBridge",
+  "ui.488": "AnimBridge moves animation between Unity, Unreal and Blender. Four steps are all you need.",
+  "ui.489": "Open files",
+  "ui.490": "Drop .unitypackage, .anim, .fbx or .uasset files or a folder onto the window, or choose 'Open package'.",
+  "ui.491": "Preview",
+  "ui.492": "Hover a clip in the library to see it move. Humanoid clips play on the built-in character.",
+  "ui.493": "Connect engines",
+  "ui.494": "The Unity Editor is found through Unity Hub automatically. To convert Unreal .uasset files, choose your Unreal Editor.",
+  "ui.495": "Export",
+  "ui.496": "Tick the clips you want and choose 'Export selected clips'. Your original files are never changed.",
+  "ui.497": "If AnimBridge helped you, please consider supporting it.",
+  "ui.498": "How to use",
+  "ui.499": "Get started"
 };

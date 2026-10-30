@@ -206,7 +206,20 @@ int main(int count, char** args) {
             auto identity = json::parse(std::ifstream(session.extractedRoots[0].parent_path() / ".animbridge-package.json"));
             check(identity["sourceHash"] == fileSha256(source) && identity["parserVersion"] == ParserVersion, "full package hash and parser identity retained");
             Session second; second.ingest({source}, root / "standard-user-profile-cache");
-            check(second.clips[0].id == session.clips[0].id && second.extractedRoots[0] != session.extractedRoots[0], "separate extractions retain stable clip identity");
+            check(second.clips[0].id == session.clips[0].id && second.clips[0].source == session.clips[0].source, "reopening reuses the extraction, so clip paths stay stable for the preview cache");
+            check(second.extractedRoots[0] == session.extractedRoots[0], "unchanged package bytes are not extracted again");
+        });
+        test("changed or damaged package extractions are not reused", [&] {
+            auto source = root / "reopen.unitypackage", reopenCache = root / "reopen-cache";
+            auto packageCount = [&] { return std::distance(fs::directory_iterator(reopenCache / "packages"), fs::directory_iterator{}); };
+            package(source, {{guid + "/pathname", "Assets/Hero/Walk.anim"}, {guid + "/asset", anim}});
+            Session first; first.ingest({source}, reopenCache);
+            package(source, {{guid + "/pathname", "Assets/Hero/Walk.anim"}, {guid + "/asset", anim + "  m_WrapMode: 2\n"}});
+            Session changed; changed.ingest({source}, reopenCache);
+            check(changed.extractedRoots[0] != first.extractedRoots[0] && packageCount() == 2, "new package bytes get a fresh extraction");
+            fs::remove(changed.clips[0].source);
+            Session repaired; repaired.ingest({source}, reopenCache);
+            check(repaired.extractedRoots[0] != changed.extractedRoots[0] && fs::is_regular_file(repaired.clips[0].source), "an extraction missing an asset is extracted again");
         });
         test("package change after extraction rolls back the owned extraction directory", [&] {
             auto source = root / "changing-package.unitypackage", changingCache = root / "changing-cache";

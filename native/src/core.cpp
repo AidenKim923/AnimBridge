@@ -408,6 +408,47 @@ std::optional<UnrealAssetLocation> locateUnrealAsset(const fs::path& asset) {
     }
     return std::nullopt;
 }
+namespace {
+// True when every asset listed by the extraction is still a regular file inside
+// its own assets folder (no deletions, no links escaping the cache).
+bool completeExtraction(const fs::path& root) {
+    const auto assets = fs::canonical(root / "assets");
+    const auto listing = json::parse(readText(root / ".animbridge-virtual-paths.json"));
+    if (listing.value("portableNamePolicyVersion", 0u) != PortableNamePolicyVersion) return false;
+    for (const auto& [key, spelling] : listing.at("paths").items()) {
+        const auto file = fs::canonical(assets / fromUtf8(spelling.get<std::string>()));
+        const auto relative = file.lexically_relative(assets);
+        if (!fs::is_regular_file(file) || relative.empty() || *relative.begin() == "..") return false;
+    }
+    return true;
+}
+// Reopening a package from Recent must not extract it again. A fresh directory
+// gives every clip a new path, which misses the path-keyed preview cache and
+// makes Unity re-bake every clip. Reuse the newest finished extraction of the
+// same package bytes and parser version instead.
+std::optional<fs::path> reusableExtraction(const fs::path& owner, const std::string& sourceHash) {
+    std::error_code error;
+    if (sourceHash.empty() || !fs::is_directory(owner, error)) return std::nullopt;
+    std::optional<fs::path> newest;
+    fs::file_time_type newestTime{};
+    for (const auto& entry : fs::directory_iterator(owner, error)) {
+        const auto root = entry.path();
+        if (!entry.is_directory(error) || !root.filename().wstring().starts_with(L"package-")) continue;
+        try {
+            const auto identityFile = root / ".animbridge-package.json";
+            const auto identity = json::parse(readText(identityFile));
+            if (identity.value("sourceHash", "") != sourceHash || identity.value("parserVersion", "") != ParserVersion ||
+                identity.value("portableNamePolicyVersion", 0u) != PortableNamePolicyVersion) continue;
+            if (!completeExtraction(root)) continue;
+            const auto time = fs::last_write_time(identityFile);
+            if (!newest || time > newestTime) { newest = root / "assets"; newestTime = time; }
+        } catch (const std::exception&) {
+            continue; // Damaged or foreign folder: a fresh extraction replaces it.
+        }
+    }
+    return newest;
+}
+}
 void Session::ingest(const std::vector<fs::path>& paths, const fs::path& cache, Limits limits, const RuntimeContext& context) {
     for (auto& input : paths) {
         try { utf8(input); }
@@ -423,16 +464,24 @@ void Session::ingest(const std::vector<fs::path>& paths, const fs::path& cache, 
         // Make each drop transactional so a corrupt package cannot leave a partial list.
         Session addition;
         PackageRollback rollback;
+        bool reusedExtraction = false;
         if (packaged) {
             // Do not repeat the 64-character content hash and parser version in
             // every physical asset path. Ordinary commercial asset names then
             // exceed MAX_PATH on Windows systems with long paths disabled.
-            // Each extraction still owns a fresh, atomically allocated package
-            // directory; retain the complete identity outside the asset tree.
-            auto root = extractUnityPackage(path, cache / "packages", limits); addition.extractedRoots.push_back(root);
-            rollback.root = root.parent_path();
-            rollback.owner = cache / "packages";
-            writeJson(root.parent_path() / ".animbridge-package.json", {{"sourcePath", utf8(path)}, {"sourceHash", record.sourceHash}, {"parserVersion", ParserVersion}, {"portableNamePolicyVersion", PortableNamePolicyVersion}, {"unicodeVersion", "16.0.0"}, {"normalizer", "utf8proc-2.10.0"}});
+            // Each extraction owns an atomically allocated package directory;
+            // retain the complete identity outside the asset tree.
+            fs::path root;
+            if (auto existing = reusableExtraction(cache / "packages", record.sourceHash)) {
+                root = *existing;
+                reusedExtraction = true; // Other sessions may use it, so a failure here must not delete it.
+            } else {
+                root = extractUnityPackage(path, cache / "packages", limits);
+                rollback.root = root.parent_path();
+                rollback.owner = cache / "packages";
+                writeJson(root.parent_path() / ".animbridge-package.json", {{"sourcePath", utf8(path)}, {"sourceHash", record.sourceHash}, {"parserVersion", ParserVersion}, {"portableNamePolicyVersion", PortableNamePolicyVersion}, {"unicodeVersion", "16.0.0"}, {"normalizer", "utf8proc-2.10.0"}});
+            }
+            addition.extractedRoots.push_back(root);
             scanPath(addition, root, false);
             auto virtualPaths = json::parse(readText(root.parent_path() / ".animbridge-virtual-paths.json"));
             std::map<std::string, int> occurrences;
@@ -446,7 +495,8 @@ void Session::ingest(const std::vector<fs::path>& paths, const fs::path& cache, 
                 if (index) clip.identityDigest = "occurrence=" + std::to_string(index);
             }
         } else scanPath(addition, path);
-        if (packaged && fileSha256(path) != record.sourceHash) throw std::runtime_error("Package bytes changed during extraction; analyse again");
+        // Only a new extraction read the package bytes, so only it needs re-checking.
+        if (packaged && !reusedExtraction && fileSha256(path) != record.sourceHash) throw std::runtime_error("Package bytes changed during extraction; analyse again");
         std::map<std::string, std::string> hashes;
         std::vector<Clip*> processed;
         for (auto& clip : addition.clips) {
