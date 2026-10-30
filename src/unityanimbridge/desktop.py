@@ -406,8 +406,9 @@ def helper_test(request):
 
 def _unity_preview(request, humanoid):
     """Validate and sample together; cache only successful, content-bound results."""
-    from .default_humanoid import cache_lock, file_digest, resolve_default, UnrealApprovalRequired
+    from .default_humanoid import cache_lock, embedded_default, file_digest, resolve_default, UnrealApprovalRequired
     request = dict(request, humanoid=humanoid)
+    original = dict(request)
     default = None
     if not request.get("skeleton") and not humanoid:
         return {"status": "blocked", "code": "needsSkeleton", "reason": "Connect a compatible character before preview"}
@@ -415,7 +416,10 @@ def _unity_preview(request, humanoid):
     work = _work(request, "preview")
     if not request.get("skeleton"):
         try:
-            default = resolve_default(request)
+            # The character authored with the clip comes first; a failed evaluation of it
+            # retries once with the regular default (_no_embedded) instead of blocking.
+            default = None if request.get("_no_embedded") else embedded_default(request)
+            default = default or resolve_default(request)
         except UnrealApprovalRequired as error:
             return {"status": "blocked", "code": "needsUnrealEditor", "reason": str(error)}
         except process.ProcessTimeout:
@@ -442,11 +446,15 @@ def _unity_preview(request, humanoid):
                 result = _read(cached)
                 if result.get("status") == "ready":
                     result["cache_hit"] = True
+                    if default:
+                        result["default_character"] = default
                     return result
             except (ValueError, OSError):
                 pass
         evaluated = _unity(request, "preview", work)
         if evaluated.get("status") != "ok" or not evaluated.get("preview_file"):
+            if default and default.get("embedded"):
+                return _unity_preview(dict(original, _no_embedded=True), humanoid)
             return {"status": "blocked", "code": "needsAvatar" if humanoid else "needsSkeleton",
                     "reason": evaluated.get("reason", "Unity could not evaluate this clip"), "helper": evaluated}
         result = _read(evaluated["preview_file"])

@@ -1,5 +1,6 @@
 """Default character preparation and content-bound Unity preview caching."""
 import json
+import struct
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import time
@@ -229,3 +230,116 @@ def test_reused_slot_removes_past_clip_guids_only_inside_owned_folder(tmp_path):
     assert model.read_bytes() == b"model"
     desktop._clear_old_clips(project, None)
     assert list(clips.iterdir()) == []
+
+
+def _fbx_prop(value):
+    if isinstance(value, int):
+        return b"L" + struct.pack("<q", value)
+    data = value.encode()
+    return b"S" + struct.pack("<I", len(data)) + data
+
+
+def _fbx_node(name, props, children, base):
+    body = b"".join(_fbx_prop(value) for value in props)
+    head = 25 + len(name)
+    blob, position = b"", base + head + len(body)
+    for child in children:
+        piece = _fbx_node(*child, position)
+        blob, position = blob + piece, position + len(piece)
+    if children:
+        blob, position = blob + b"\0" * 25, position + 25
+    return struct.pack("<QQQB", position, len(props), len(body), len(name)) + name.encode() + body + blob
+
+
+def write_fbx(path, skin, setup=None, guid=None, source=None):
+    """Minimal binary FBX 7.5 with an optional Skin deformer; `setup` also writes an importer .meta."""
+    objects = [("Model", [100, "Hips\0\x01Model", "LimbNode"], [])]
+    if skin:
+        objects.append(("Deformer", [900, "Skin\0\x01Deformer", "Skin"], []))
+    header = b"Kaydara FBX Binary  \0\x1a\0" + struct.pack("<I", 7500)
+    settings = _fbx_node("GlobalSettings", [], [], len(header))
+    path.write_bytes(header + settings + _fbx_node("Objects", [], objects, len(header) + len(settings)))
+    if setup is not None:
+        meta = f"fileFormatVersion: 2\nguid: {guid}\nModelImporter:\n  animationType: 3\n  avatarSetup: {setup}\n"
+        if source:
+            meta += "  lastHumanDescriptionAvatarSource: {fileID: 9000000, guid: " + source + ", type: 3}\n"
+        Path(str(path) + ".meta").write_text(meta, encoding="utf-8")
+    return path
+
+
+def test_fbx_has_skinned_mesh_reads_the_skin_deformer(tmp_path):
+    skinned = write_fbx(tmp_path / "skinned.fbx", True)
+    assert default_humanoid.fbx_has_skinned_mesh(skinned)
+    assert not default_humanoid.fbx_has_skinned_mesh(write_fbx(tmp_path / "bare.fbx", False))
+    (tmp_path / "ascii.fbx").write_text("; FBX 7.4.0 project file", encoding="utf-8")
+    assert not default_humanoid.fbx_has_skinned_mesh(tmp_path / "ascii.fbx")
+    skinned.write_bytes(skinned.read_bytes()[:40])
+    assert not default_humanoid.fbx_has_skinned_mesh(skinned)
+    assert not default_humanoid.fbx_has_skinned_mesh(tmp_path / "missing.fbx")
+
+
+def test_embedded_default_follows_the_clips_avatar_source(tmp_path):
+    packages = tmp_path / "cache/packages"
+    folder = packages / "package-1/assets"
+    folder.mkdir(parents=True)
+    owner_guid = "a" * 32
+    model = write_fbx(folder / "model.fbx", True, 1, owner_guid)
+    write_fbx(folder / "decoy.fbx", True, 1, "b" * 32)
+    copied = write_fbx(folder / "idle.fbx", False, 2, "c" * 32, owner_guid)
+    own = write_fbx(folder / "own.fbx", True, 1, "d" * 32)
+    request = {"humanoid": True}
+
+    def choose(clip):
+        return default_humanoid.embedded_default(dict(request, source=str(clip)), packages_root=packages)
+
+    # A clip that builds its avatar from its own skinned model uses itself.
+    chosen = choose(own)
+    assert chosen["model"] == str(own.resolve()) and chosen["embedded"] and chosen["human_mapping"] == {}
+    # A clip that copies an avatar uses the asset owning that GUID, not a lookalike.
+    assert choose(copied)["model"] == str(model.resolve())
+    # An owner without a skin, or one that itself copies an avatar, is not a usable character.
+    write_fbx(folder / "model.fbx", False, 1, owner_guid)
+    assert choose(copied) is None
+    write_fbx(folder / "model.fbx", True, 2, owner_guid, "b" * 32)
+    assert choose(copied) is None
+    # Outside the app's package cache nothing is looked up, because the host granted no access there.
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    write_fbx(loose / "model.fbx", True, 1, owner_guid)
+    assert choose(write_fbx(loose / "idle.fbx", False, 2, "c" * 32, owner_guid)) is None
+    # Without importer metadata, for a non-Humanoid request or a non-FBX clip the regular default applies.
+    assert choose(write_fbx(folder / "nometa.fbx", True)) is None
+    assert default_humanoid.embedded_default({"source": str(own), "humanoid": False}, packages_root=packages) is None
+    assert choose(tmp_path / "clip.anim") is None
+
+
+def test_preview_uses_the_embedded_character_before_any_default(tmp_path, monkeypatch):
+    clip = write_fbx(tmp_path / "clip.fbx", True, 1, "e" * 32)
+    calls = []
+    monkeypatch.setattr(desktop, "_unity", fake_engine(calls))
+    monkeypatch.setattr(default_humanoid, "resolve_default", lambda request: pytest.fail("the clip's own character must win"))
+    result = desktop.preview({"source": str(clip), "humanoid": True, "cache": str(tmp_path / "cache")})
+    assert result["status"] == "ready" and result["default_character"]["embedded"] is True
+    assert len(calls) == 1 and calls[0][0]["skeleton"] == str(clip.resolve()) and calls[0][0]["human_mapping"] == {}
+    # A cached result is shared with an explicit run of the same character, yet still names the character.
+    again = desktop.preview({"source": str(clip), "humanoid": True, "cache": str(tmp_path / "cache")})
+    assert again["cache_hit"] and again["default_character"]["embedded"] is True and len(calls) == 1
+
+
+def test_failed_embedded_evaluation_retries_with_the_regular_default(tmp_path, monkeypatch):
+    clip, manny = write_fbx(tmp_path / "clip.fbx", True, 1, "e" * 32), tmp_path / "Manny.fbx"
+    manny.write_bytes(b"actual-model-supplied-to-mocked-engine")
+    tried, real = [], fake_engine([])
+
+    def engine(request, operation, work):
+        tried.append(request["skeleton"])
+        if request["skeleton"] == str(clip.resolve()):
+            return {"status": "needsAvatar", "connected": True, "reason": "avatar invalid"}
+        return real(request, operation, work)
+
+    monkeypatch.setattr(desktop, "_unity", engine)
+    monkeypatch.setattr(default_humanoid, "resolve_default", lambda request: {
+        "model": str(manny), "name": "UE5 Mannequin (Manny)", "human_mapping": {"Hips": "pelvis"}})
+    result = desktop.preview({"source": str(clip), "humanoid": True, "cache": str(tmp_path / "cache")})
+    assert result["status"] == "ready" and result["default_character"]["name"] == "UE5 Mannequin (Manny)"
+    assert tried == [str(clip.resolve()), str(manny)]

@@ -15,11 +15,13 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import time
 
 from . import process, runtime
 from .blender_runner import PROJECT_ROOT, default_data_root
+from .meta_parser import meta_path_for
 
 
 HUMAN_MAPPING = {
@@ -50,6 +52,137 @@ def bundled_default():
         return None
     return {"model": str(model.resolve()), "name": BUNDLED_NAME,
             "human_mapping": dict(BUNDLED_MAPPING), "bundled": True}
+
+
+def fbx_has_skinned_mesh(path):
+    """True when a binary FBX stores a Skin deformer, i.e. it carries a skinned character.
+
+    Only node headers and the first three properties of each Objects/Deformer node are
+    read. ASCII FBX, other FBX layouts and unreadable files report False.
+    """
+    try:
+        with open(path, "rb") as handle:
+            if handle.read(20) != b"Kaydara FBX Binary  ":
+                return False
+            handle.seek(23)
+            wide = struct.unpack("<I", handle.read(4))[0] >= 7500
+            head = "<QQQB" if wide else "<IIIB"
+            size = struct.calcsize(head)
+
+            def node(position):
+                handle.seek(position)
+                raw = handle.read(size)
+                if len(raw) < size:
+                    return None
+                end, count, length, name_length = struct.unpack(head, raw)
+                if end <= position:
+                    return None
+                name = handle.read(name_length)
+                return end, count, length, name, handle.tell()
+
+            def deformer_type(start, count):
+                handle.seek(start)
+                for index in range(min(count, 3)):
+                    kind = handle.read(1)
+                    if kind == b"L":
+                        handle.read(8)
+                    elif kind == b"S":
+                        value = handle.read(struct.unpack("<I", handle.read(4))[0])
+                        if index == 2:
+                            return value
+                    else:
+                        return None
+                return None
+
+            position = 27
+            while True:
+                top = node(position)
+                if top is None:
+                    return False
+                end, _, length, name, start = top
+                if name == b"Objects":
+                    child_position = start + length
+                    while child_position < end:
+                        child = node(child_position)
+                        if child is None:
+                            break
+                        child_end, count, _, child_name, child_start = child
+                        if child_name == b"Deformer" and deformer_type(child_start, count) == b"Skin":
+                            return True
+                        child_position = child_end
+                    return False
+                position = end
+    except (OSError, struct.error):
+        return False
+
+
+_AVATAR_SETUP = re.compile(r"^\s*avatarSetup:\s*(\d+)", re.M)
+_AVATAR_SOURCE = re.compile(r"^\s*lastHumanDescriptionAvatarSource:\s*\{[^}]*?guid:\s*([0-9a-f]{32})", re.M)
+_META_GUID = re.compile(r"^guid:\s*([0-9a-f]{32})", re.M)
+
+
+def _read_text(path, limit):
+    try:
+        with open(path, "rb") as handle:
+            return handle.read(limit).decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def _meta_avatar(asset):
+    """(avatarSetup, source-avatar GUID) from an FBX's importer metadata."""
+    text = _read_text(meta_path_for(asset), 4 << 20)
+    setup, source = _AVATAR_SETUP.search(text), _AVATAR_SOURCE.search(text)
+    return (int(setup.group(1)) if setup else 0), (source.group(1) if source else None)
+
+
+def _avatar_owner(source, guid, packages_root):
+    """The skinned FBX that defines a copied avatar, found by GUID inside the clip's own package."""
+    try:
+        packages = Path(packages_root).resolve()
+        parts = source.relative_to(packages).parts
+        if len(parts) < 2:
+            return None
+        for meta in sorted((packages / parts[0]).rglob("*.meta")):
+            owned = _META_GUID.search(_read_text(meta, 256)) if meta.name.lower().endswith(".fbx.meta") else None
+            if owned and owned.group(1) == guid:
+                owner = meta.with_suffix("").resolve()
+                if owner.is_file() and owner.is_relative_to(packages) and _meta_avatar(owner)[0] == 1 \
+                        and fbx_has_skinned_mesh(owner):
+                    return owner
+                return None
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def embedded_default(request, packages_root=None):
+    """Prefer the character the clip was authored with over a stand-in character.
+
+    Motion authored together with its character previews faithfully on that character.
+    A stand-in such as Manny can distort it when the stand-in's rest pose is not a T-pose.
+    A clip whose importer builds its avatar from its own skinned model uses itself. A clip
+    that copies another asset's avatar uses that asset, looked up by GUID, but only inside
+    the app-extracted package cache because the host granted no access elsewhere.
+    """
+    source = Path(request["source"]).resolve() if request.get("source") else None
+    if source is None or source.suffix.lower() != ".fbx" or not request.get("humanoid"):
+        return None
+    setup, guid = _meta_avatar(source)
+    model = None
+    if setup == 1:
+        model = source if fbx_has_skinned_mesh(source) else None
+    elif setup == 2 and guid:
+        if packages_root is None:
+            try:
+                packages_root = runtime.current_context().cache_dir / "packages"
+            except runtime.RuntimeContextError:
+                return None
+        model = _avatar_owner(source, guid, packages_root)
+    if model is None:
+        return None
+    return {"model": str(model), "name": "Embedded model (" + model.name + ")",
+            "human_mapping": {}, "embedded": True}
 
 
 class UnrealApprovalRequired(ValueError):
