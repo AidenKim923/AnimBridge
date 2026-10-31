@@ -112,6 +112,47 @@ void publishReport(const fs::path& requested, json value, const std::string& att
     value["program"] = "AnimBridge"; value["attemptId"] = attemptId;
     writeAtomic(target, value, owned);
 }
+// Exported animation FBX files carry bones but no mesh, and Unreal can only
+// import them onto an existing Skeleton with the same bone names. Copy the
+// character model the bake used into <output>/Character so the user can
+// import it first and get that Skeleton. Returns the copy, or empty when no
+// bake used the model. An existing file is never replaced: identical content
+// is reused, different content gets a "-<attemptId>" name.
+fs::path publishCharacterModel(const Plan& plan, const std::vector<Result>& results, const std::string& attemptId) {
+    const auto& model = plan.options.skeleton;
+    if (plan.options.direction != Direction::UnityToUnreal || model.empty() || !fs::is_regular_file(model)) return {};
+    std::string expectedHash;
+    for (const auto& result : results) {
+        if (result.status != "ok" && result.status != "warning") continue;
+        auto job = std::find_if(plan.jobs.begin(), plan.jobs.end(), [&](const Job& item) { return item.clip.id == result.id; });
+        if (job != plan.jobs.end() && (job->action == "unity-helper-bake" || job->action == "python-convert") && !job->skeletonHash.empty()) { expectedHash = job->skeletonHash; break; }
+    }
+    if (expectedHash.empty()) return {};
+    // The model must still be the exact file the animations were baked against.
+    if (fileSha256(model) != expectedHash) throw std::runtime_error("The character model changed during export; it was not copied");
+    // A clip may itself be named "Character"; never mix the model into a clip's folder.
+    auto folded = [](std::string text) { for (auto& c : text) c = char(std::tolower(static_cast<unsigned char>(c))); return text; };
+    auto clipFolder = [&](const fs::path& candidate) {
+        for (const auto& job : plan.jobs) if (folded(utf8(job.output.filename())) == folded(utf8(candidate.filename()))) return true;
+        return fs::exists(candidate / "manifest.json");
+    };
+    auto folder = plan.options.output / "Character";
+    if (clipFolder(folder)) folder = plan.options.output / "Character_Model";
+    if (clipFolder(folder)) folder = plan.options.output / fromUtf8("Character_Model-" + attemptId);
+    fs::create_directories(folder);
+    auto target = folder / model.filename();
+    if (fs::exists(target)) {
+        if (fs::is_regular_file(target) && fileSha256(target) == expectedHash) return target;
+        target = folder / fromUtf8(utf8(model.stem()) + "-" + attemptId + utf8(model.extension()));
+    }
+    const auto staged = folder / fromUtf8(".animbridge-tmp-model-" + attemptId);
+    fs::copy_file(model, staged, fs::copy_options::overwrite_existing);
+    if (FileCommitter::noReplace(staged, target) != PublishResult::Committed) {
+        std::error_code ignored; fs::remove(staged, ignored);
+        throw std::runtime_error("The character model copy target already exists: " + utf8(target));
+    }
+    return target;
+}
 void rewritePaths(json& value, const fs::path& before, const fs::path& after) {
     if (value.is_string()) {
         auto text = value.get<std::string>(); auto prefix = utf8(before);
@@ -464,7 +505,11 @@ std::vector<Result> execute(const Plan& plan, Progress progress, std::shared_ptr
         result.checksJson = checks.dump(); result.finishedAt = timestampUtc(); emit(result, result.status == "ok" || result.status == "warning" || result.status == "ready-for-unity-import" ? "completed" : result.status);
         results.push_back(result);
     }
+    fs::path characterModel; std::string characterModelWarning;
     if (plan.options.mode == ExportMode::Bake) {
+        // A failed model copy never fails the animations that were already published.
+        try { characterModel = publishCharacterModel(plan, results, attemptId); }
+        catch (const std::exception& error) { characterModelWarning = std::string("Character model was not copied: ") + error.what(); }
         json reverse = json::array();
         for (auto& result : results) if (result.status == "ready-for-unity-import") {
             auto job = std::find_if(plan.jobs.begin(), plan.jobs.end(), [&](auto& item) { return item.clip.id == result.id; });
@@ -478,6 +523,8 @@ std::vector<Result> execute(const Plan& plan, Progress progress, std::shared_ptr
     manifest["planSnapshot"] = json::parse(plan.planSnapshot.empty() ? planJson(plan) : plan.planSnapshot);
     manifest["versions"] = {{"parser", ParserVersion}}; manifest["checks"] = {{"enginePlayback", "notRun"}, {"retargeting", "notRun"}};
     manifest["warnings"] = json::array(); for (auto& result : results) for (auto& warning : result.warnings) manifest["warnings"].push_back({{"id", result.id}, {"message", warning}});
+    if (!characterModel.empty()) manifest["characterModel"] = utf8(characterModel);
+    if (!characterModelWarning.empty()) manifest["warnings"].push_back({{"id", ""}, {"message", characterModelWarning}});
     manifest["completedAt"] = timestampUtc();
     writeAtomic(history / "output-manifest.json", manifest);
     publishReport(plan.options.output / "animbridge-results.json", manifest, attemptId);

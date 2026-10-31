@@ -469,6 +469,15 @@ int main(int count, char** args) {
             check(plan.jobs.size() == 1 && plan.jobs[0].action == "unity-helper-bake" && plan.jobs[0].clip.name == "SelectedHuman", "only exact selected clip planned for Unity evaluation");
             auto result = execute(plan); check(result.size() == 1 && result[0].status == "ok", "helper received exact clip and Humanoid requirement");
             check(fs::is_empty(options.workRoot / "helper"), "successful helper cache cleaned outside user outputs");
+            // Animation FBX files have no mesh; Unreal needs the character model first.
+            auto model = options.output / "Character" / "Model.fbx";
+            check(fs::is_regular_file(model) && fileSha256(model) == fileSha256(options.skeleton), "bake copies the character model next to the animations");
+            auto report = json::parse(std::ifstream(options.output / "animbridge-results.json"));
+            check(report.value("characterModel", "") == utf8(model), "results report names the character model copy");
+            options.collisionPolicy = CollisionPolicy::Rename;
+            check(execute(makePlan(session, options))[0].status == "ok", "second bake into the same folder succeeds");
+            check(std::distance(fs::directory_iterator(options.output / "Character"), fs::directory_iterator{}) == 1, "an identical character model is reused, not duplicated");
+            options.collisionPolicy = CollisionPolicy::Fail;
             session.selectAll(true, ExportMode::ExtractOriginal); options.mode = ExportMode::ExtractOriginal; options.output = root / "human-original-output";
             auto original = makePlan(session, options); check(original.jobs.size() == 1 && original.jobs[0].action == "extract-original", "Humanoid original extraction remains deduplicated and independent");
         });

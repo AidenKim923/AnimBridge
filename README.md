@@ -45,6 +45,7 @@
 2. Search and select clips, then preview them in the app.
 3. Extract the originals or bake the selected animations to FBX.
 4. Bring the output into your target workflow with the supplied engine helpers.
+   Baked animation FBX files contain bones but no mesh. When importing them into Unreal by hand, import the character model in the output's `Character` folder first, then import the animations onto the Skeleton it creates.
 
 ## Requirements
 
