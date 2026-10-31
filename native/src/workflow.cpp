@@ -1,4 +1,5 @@
 #include "animbridge/core.hpp"
+#include "animbridge/fbx_rig.hpp"
 #include "animbridge/file_commit.hpp"
 #include "animbridge/path_identity.hpp"
 #include <nlohmann/json.hpp>
@@ -446,7 +447,18 @@ std::vector<Result> execute(const Plan& plan, Progress progress, std::shared_ptr
                         }
                         if (!result.log.empty() && within(staged, result.log)) result.log = result.output / result.log.lexically_relative(staged);
                         result.status = successStatus;
-                        if (plan.options.mode == ExportMode::ExtractOriginal) result.message = "Original file extracted; SHA-256 matches the source bytes";
+                        if (plan.options.mode == ExportMode::ExtractOriginal) {
+                            result.message = "Original file extracted; SHA-256 matches the source bytes";
+                            if (plan.options.direction == Direction::UnityToUnreal && headerFbx(result.output)) {
+                                auto rig = inspectFbxRig(result.output);
+                                if (lacksSkeleton(rig)) {
+                                    result.status = "warning";
+                                    result.message += ". Unreal will not import this file on its own. " + describeMissingSkeleton(rig)
+                                        + ". Bake it with the character model FBX as the skeleton, or import that model into Unreal first and choose its Skeleton when importing this animation.";
+                                    result.warnings.push_back(result.message);
+                                }
+                            }
+                        }
                         checks["exists"] = "passed"; checks["finalCommit"] = "passed"; checks["commitMethod"] = "atomicNoReplace";
                     }
                 }

@@ -51,7 +51,7 @@ FetchContent_Declare(utf8proc
 FetchContent_MakeAvailable(json zlib utf8proc)
 find_package(Threads REQUIRED)
 add_library(animbridge_core native/src/core.cpp native/src/package.cpp native/src/process.cpp native/src/workflow.cpp native/src/runtime.cpp
-  native/src/path_identity.cpp native/src/file_commit.cpp native/src/instance_lock.cpp)
+  native/src/fbx_rig.cpp native/src/path_identity.cpp native/src/file_commit.cpp native/src/instance_lock.cpp)
 target_include_directories(animbridge_core PUBLIC native/include "${CMAKE_CURRENT_BINARY_DIR}/generated" PRIVATE ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
 target_link_libraries(animbridge_core PUBLIC nlohmann_json::nlohmann_json Threads::Threads PRIVATE zlibstatic utf8proc)
 if(UNIX AND NOT APPLE)

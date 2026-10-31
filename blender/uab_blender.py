@@ -180,6 +180,20 @@ def read_fbx_facts(path):
     }
 
 
+def _null_rig_hint(facts):
+    """Explain the common case where every joint is a plain Null model."""
+    if not facts:
+        return ""
+    nodes = [node for group in facts["models_by_name"].values() for node in group]
+    if any(node["type"] in ("LimbNode", "Limb", "Root") for node in nodes):
+        return ""
+    nulls = sum(node["type"] == "Null" for node in nodes)
+    if not nulls:
+        return ""
+    return (f": its {nulls} joints are plain Null objects with no skinned mesh (an animation-only export). "
+            "Use the character model FBX that contains the skinned mesh as the skeleton")
+
+
 # Scene setup
 
 def reset_scene():
@@ -190,12 +204,12 @@ def import_fbx(path, use_anim):
     bpy.ops.import_scene.fbx(filepath=path, use_anim=use_anim, **IMPORT_OPTS)
 
 
-def pick_armature(name):
+def pick_armature(name, facts=None):
     arms = [o for o in bpy.context.scene.objects if o.type == "ARMATURE"]
     if name:
         arms = [o for o in arms if o.name == name]
     if not arms:
-        raise JobError("no armature found in skeleton FBX" + (f" named {name!r}" if name else ""))
+        raise JobError("no armature found in skeleton FBX" + (f" named {name!r}" if name else "") + _null_rig_hint(facts))
     if len(arms) > 1:
         raise JobError("more than one armature; pass --armature: " + ", ".join(o.name for o in arms))
     return arms[0]
@@ -569,7 +583,7 @@ def run_samples(job, result):
     import_fbx(job["skeleton_fbx"], use_anim=False)
     facts = read_fbx_facts(job["skeleton_fbx"])
     warnings = result["warnings"]
-    arm = pick_armature(job.get("armature"))
+    arm = pick_armature(job.get("armature"), facts)
     allow_local_bone_translations(arm)
     skel = Skeleton(arm, facts, warnings)
     apply_armature_policy(arm, skel, facts)
@@ -684,7 +698,7 @@ def run_split(job, result):
     reset_scene()
     import_fbx(job["source_fbx"], use_anim=True)
     facts = read_fbx_facts(job["source_fbx"])
-    arm = pick_armature(job.get("armature"))
+    arm = pick_armature(job.get("armature"), facts)
     allow_local_bone_translations(arm)
     scene = bpy.context.scene
     fps_int = scene.render.fps

@@ -1,4 +1,5 @@
 #include "animbridge/core.hpp"
+#include "animbridge/fbx_rig.hpp"
 #include "animbridge/file_commit.hpp"
 #include "animbridge/path_identity.hpp"
 #include "animbridge/process.hpp"
@@ -750,6 +751,18 @@ Plan makePlan(const Session& session, const Options& options) {
         } else {
             job.action = "stage-unity-fbx";
             if (clip.engine != Engine::Unreal || clip.kind != "fbx") { job.blockedReason = "Unreal to Unity requires animbridge-manifest.json from Unreal engine export"; job.blockedCode = "UNSUPPORTED_DATA"; }
+        }
+        if (options.mode == ExportMode::Bake && job.blockedReason.empty() && (job.action == "unity-helper-bake" || job.action == "python-convert")) {
+            // Without a chosen model, the converter reads the bones from the clip's own FBX.
+            auto rigFile = !options.skeleton.empty() ? options.skeleton : clip.kind == "fbx" ? clip.source : fs::path{};
+            if (!rigFile.empty() && lower(utf8(rigFile.extension())) == ".fbx") {
+                auto rig = inspectFbxRig(rigFile);
+                if (lacksSkeleton(rig)) {
+                    job.blockedReason = (options.skeleton.empty() ? "The clip's FBX cannot be baked by itself. " : "The connected skeleton FBX cannot be used. ") + describeMissingSkeleton(rig)
+                        + ". Connect the character model FBX that contains the skinned mesh as the skeleton.";
+                    job.blockedCode = "DEPENDENCY_MISSING";
+                }
+            }
         }
         if (options.mode == ExportMode::Bake && options.collisionPolicy == CollisionPolicy::Overwrite && fs::exists(job.output)) { job.blockedReason = "Existing bake directories cannot be overwritten safely; choose rename or skip"; job.blockedCode = "OUTPUT_CONFLICT"; }
         if (!capabilities.localVolume || !capabilities.flush || (options.mode == ExportMode::ExtractOriginal ? !capabilities.fileNoReplace : !capabilities.directoryNoReplace)) { job.blockedReason = "Output volume lacks verified atomic publication capabilities: " + capabilities.limitation; job.blockedCode = "OUTPUT_WRITE_FAILED"; }

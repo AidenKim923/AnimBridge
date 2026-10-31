@@ -1,4 +1,5 @@
 #include "animbridge/core.hpp"
+#include "animbridge/fbx_rig.hpp"
 #include "animbridge/file_commit.hpp"
 #include "animbridge/path_identity.hpp"
 #include <nlohmann/json.hpp>
@@ -49,6 +50,34 @@ void package(const fs::path& path, const std::vector<TarEntry>& entries) {
         if (padding) gzwrite(file, zero.data(), static_cast<unsigned>(padding));
     }
     std::array<char, 1024> end{}; gzwrite(file, end.data(), 1024); gzclose(file);
+}
+
+// Minimal binary FBX 7.3 writer for rig-detection tests: an Objects section
+// whose children are (node name, class) pairs such as ("Model", "Null").
+std::string fbxU32(std::uint32_t value) { return std::string(reinterpret_cast<const char*>(&value), 4); }
+std::string fbxNode(const std::string& name, const std::string& properties, std::uint32_t count, const std::vector<std::string>& children, std::uint32_t offset) {
+    auto header = static_cast<std::uint32_t>(13 + name.size());
+    std::string body;
+    for (const auto& child : children) body += child;
+    if (!children.empty()) body += std::string(13, '\0');
+    auto end = offset + header + static_cast<std::uint32_t>(properties.size() + body.size());
+    return fbxU32(end) + fbxU32(count) + fbxU32(static_cast<std::uint32_t>(properties.size())) + char(name.size()) + name + properties + body;
+}
+std::string binaryFbx(const std::vector<std::pair<std::string, std::string>>& objects) {
+    std::string file = std::string("Kaydara FBX Binary  ") + '\0' + "\x1a" + '\0' + fbxU32(7300);
+    // Children start after the Objects header (13 bytes + 7-letter name, no properties).
+    auto childOffset = static_cast<std::uint32_t>(file.size() + 13 + 7);
+    std::vector<std::string> children; std::int64_t id = 1000;
+    for (const auto& [node, type] : objects) {
+        auto label = "Joint" + std::to_string(id) + std::string("\0\x01", 2) + node;
+        std::string properties = "L" + std::string(reinterpret_cast<const char*>(&id), 8)
+            + "S" + fbxU32(static_cast<std::uint32_t>(label.size())) + label
+            + "S" + fbxU32(static_cast<std::uint32_t>(type.size())) + type;
+        children.push_back(fbxNode(node, properties, 3, {}, childOffset));
+        childOffset += static_cast<std::uint32_t>(children.back().size()); ++id;
+    }
+    file += fbxNode("Objects", "", 0, children, static_cast<std::uint32_t>(file.size()));
+    return file + std::string(13, '\0');
 }
 void test(const std::string& name, const std::function<void()>& action) { action(); ++passed; std::cout << "PASS " << name << '\n'; }
 }
@@ -740,6 +769,48 @@ int main(int count, char** args) {
             check(plan.jobs[0].metadataHash.empty() && plan.jobs[0].skeletonHash.empty() && plan.jobs[0].skeletonMetadataHash.empty(), "extract plan has no evaluation dependency hashes");
             fs::remove(skeleton); fs::remove(skeletonMeta); write(sourceMeta, "changed metadata that does not change original file bytes");
             auto result = execute(plan); check(result[0].status == "ok" && fileSha256(result[0].output) == fileSha256(source), "unrelated skeleton deletion cannot block original extraction");
+        });
+        test("FBX rig inspection tells Null-only joints from real skeletons", [&] {
+            auto nulls = root / "rig/Nulls.fbx"; write(nulls, binaryFbx({{"Model", "Null"}, {"Model", "Null"}, {"Model", "Null"}}));
+            auto rig = inspectFbxRig(nulls);
+            check(rig.parsed && rig.nullModels == 3 && rig.boneModels == 0 && lacksSkeleton(rig), "Null-only joints are reported as no skeleton");
+            check(describeMissingSkeleton(rig).find("3 joints are plain Null objects") != std::string::npos, "message names the Null joints");
+            auto limbs = root / "rig/Limbs.fbx"; write(limbs, binaryFbx({{"Model", "Null"}, {"Model", "LimbNode"}, {"Geometry", "Mesh"}}));
+            rig = inspectFbxRig(limbs); check(rig.parsed && rig.boneModels == 1 && rig.meshes == 1 && !lacksSkeleton(rig), "LimbNode joints are a skeleton");
+            auto skinned = root / "rig/Skinned.fbx"; write(skinned, binaryFbx({{"Model", "Null"}, {"Model", "Mesh"}, {"Deformer", "Skin"}}));
+            check(!lacksSkeleton(inspectFbxRig(skinned)), "a skinned mesh lets importers build a skeleton from Null joints");
+            auto ascii = root / "rig/Ascii.fbx";
+            write(ascii, "; FBX 7.3.0 project file\nObjects:  {\n\tModel: 1, \"Model::Hips\", \"Null\" {\n\t}\n}\nConnections:  {\n}\n");
+            rig = inspectFbxRig(ascii); check(rig.parsed && rig.nullModels == 1 && lacksSkeleton(rig), "ASCII Null-only file is detected");
+            write(ascii, "; FBX 7.3.0 project file\nObjects:  {\n\tModel: 1, \"Model::Hips\", \"LimbNode\" {\n\t}\n}\n");
+            check(!lacksSkeleton(inspectFbxRig(ascii)), "ASCII LimbNode file is a skeleton");
+            auto truncated = root / "rig/Truncated.fbx"; auto bytes = binaryFbx({{"Model", "Null"}}); write(truncated, bytes.substr(0, bytes.size() - 30));
+            check(!inspectFbxRig(truncated).parsed && !lacksSkeleton(inspectFbxRig(truncated)), "damaged files make no claim");
+            auto other = root / "rig/Other.fbx"; write(other, "not an fbx");
+            check(!inspectFbxRig(other).parsed, "unrecognised bytes make no claim");
+        });
+        test("bake planning blocks a skeleton FBX whose joints are only Null objects", [&] {
+            auto source = root / "null-rig/Kick.fbx"; write(source, binaryFbx({{"Model", "Null"}, {"Model", "Null"}}));
+            Session session; session.ingest({source}, cache); session.selectAll(true);
+            Options options; options.output = root / "null-rig-output";
+            auto plan = makePlan(session, options);
+            check(plan.jobs[0].blockedCode == "DEPENDENCY_MISSING" && plan.jobs[0].blockedReason.find("character model FBX") != std::string::npos, "clip FBX without a skeleton is blocked before Blender runs");
+            auto model = root / "null-rig/Model.fbx"; write(model, binaryFbx({{"Model", "LimbNode"}, {"Geometry", "Mesh"}, {"Deformer", "Skin"}}));
+            options.skeleton = model; plan = makePlan(session, options);
+            check(plan.jobs[0].blockedCode != "DEPENDENCY_MISSING", "a real character model clears the block");
+            options.skeleton = source; plan = makePlan(session, options);
+            check(plan.jobs[0].blockedReason.find("connected skeleton FBX cannot be used") != std::string::npos, "a Null-only skeleton is named as the problem");
+        });
+        test("original extraction for Unreal warns when the FBX has no skeleton", [&] {
+            auto source = root / "null-extract/Kick.fbx"; write(source, binaryFbx({{"Model", "Null"}, {"Model", "Null"}}));
+            Session session; session.ingest({source}, cache); session.selectAll(true, ExportMode::ExtractOriginal);
+            Options options; options.mode = ExportMode::ExtractOriginal; options.output = root / "null-extract-output";
+            auto result = execute(makePlan(session, options));
+            check(result[0].status == "warning" && result[0].message.find("Unreal will not import this file on its own") != std::string::npos && !result[0].warnings.empty(), "extracted Null-only FBX carries a warning");
+            check(fileSha256(result[0].output) == fileSha256(source), "the extracted bytes are still the original");
+            options.direction = Direction::UnrealToUnity; options.output = root / "null-extract-unity";
+            result = execute(makePlan(session, options));
+            check(result[0].status == "ok", "Unity-bound extraction is unchanged");
         });
         std::cout << passed << " native tests passed\n"; return 0;
     } catch (const std::exception& e) { std::cerr << "FAIL " << e.what() << '\n'; return 1; }
