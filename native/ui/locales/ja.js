@@ -536,6 +536,7 @@ export default {
   'native.outputWriteDenied': '出力フォルダーに書き込めません。',
   'native.outputSpaceLow': '出力フォルダーの空き容量が 1 MiB 未満です。',
   'native.openPathNotAllowed': '確認済みのローカルファイルと出力フォルダーのみを開けます。',
+  'native.pathApprovalMissing': 'このパスの承認がないか期限切れです。ファイルまたはフォルダーを選び直してください。',
   'native.explorerOpenFailed': 'エクスプローラーでパスを開けませんでした。',
   'native.clipboardOpenFailed': 'クリップボードを開けません。',
   'native.clipboardAllocationFailed': 'クリップボードのメモリを確保できません。',

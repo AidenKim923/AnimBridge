@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "Папка вывода недоступна для записи.",
   "native.outputSpaceLow": "В папке вывода осталось меньше 1 МиБ свободного места.",
   "native.openPathNotAllowed": "Можно открывать только проверенные локальные файлы и папки вывода.",
+  "native.pathApprovalMissing": "Разрешение для этого пути отсутствует или устарело. Выберите файл или папку ещё раз.",
   "native.explorerOpenFailed": "Не удалось открыть путь в Проводнике.",
   "native.clipboardOpenFailed": "Не удалось открыть буфер обмена.",
   "native.clipboardAllocationFailed": "Не удалось выделить память буфера обмена.",

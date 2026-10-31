@@ -252,11 +252,17 @@ RuntimeContext resolveRuntimeContext(const fs::path& dataOverride) {
 #endif
     }
     context.tempRoot = context.cacheRoot / "jobs/tmp";
+    // An isolated data root (tests, side-by-side instances) keeps its default
+    // exports inside itself: the app creates this folder on start, and such
+    // runs must not create folders in the user's Documents.
+    if (!dataOverride.empty()) context.exportRoot = context.dataRoot / "exports";
+    else {
 #ifdef _WIN32
-    context.exportRoot = knownFolder(FOLDERID_Documents) / "AnimBridge";
+        context.exportRoot = knownFolder(FOLDERID_Documents) / "AnimBridge";
 #else
-    context.exportRoot = home() / "Documents/AnimBridge";
+        context.exportRoot = home() / "Documents/AnimBridge";
 #endif
+    }
     context.dataRoot = resolved(context.dataRoot); context.cacheRoot = resolved(context.cacheRoot);
     context.stateRoot = resolved(context.stateRoot); context.logRoot = resolved(context.logRoot);
     context.tempRoot = resolved(context.tempRoot); context.exportRoot = resolved(context.exportRoot);

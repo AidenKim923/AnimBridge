@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "Não é possível gravar na pasta de saída.",
   "native.outputSpaceLow": "A pasta de saída tem menos de 1 MiB de espaço livre.",
   "native.openPathNotAllowed": "Apenas arquivos locais verificados e pastas de saída podem ser abertos.",
+  "native.pathApprovalMissing": "A autorização deste caminho está ausente ou expirou. Selecione o arquivo ou a pasta novamente.",
   "native.explorerOpenFailed": "Não foi possível abrir o caminho no Explorador de Arquivos.",
   "native.clipboardOpenFailed": "Não foi possível abrir a área de transferência.",
   "native.clipboardAllocationFailed": "Não foi possível alocar memória para a área de transferência.",

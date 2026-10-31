@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "Çıktı klasörüne yazılamıyor.",
   "native.outputSpaceLow": "Çıktı klasöründe 1 MiB'den az boş alan var.",
   "native.openPathNotAllowed": "Yalnızca doğrulanmış yerel dosyalar ve çıktı klasörleri açılabilir.",
+  "native.pathApprovalMissing": "Bu yol için onay yok veya süresi doldu. Dosyayı veya klasörü yeniden seçin.",
   "native.explorerOpenFailed": "Yol, Dosya Gezgini'nde açılamadı.",
   "native.clipboardOpenFailed": "Pano açılamadı.",
   "native.clipboardAllocationFailed": "Pano belleği ayrılamadı.",

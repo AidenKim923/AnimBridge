@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "ไม่สามารถเขียนในโฟลเดอร์ผลลัพธ์ได้",
   "native.outputSpaceLow": "โฟลเดอร์ผลลัพธ์มีพื้นที่ว่างน้อยกว่า 1 MiB",
   "native.openPathNotAllowed": "เปิดได้เฉพาะไฟล์ในเครื่องที่ตรวจสอบแล้วและโฟลเดอร์ผลลัพธ์",
+  "native.pathApprovalMissing": "ไม่มีการอนุญาตสำหรับเส้นทางนี้หรือหมดอายุแล้ว เลือกไฟล์หรือโฟลเดอร์อีกครั้ง",
   "native.explorerOpenFailed": "ไม่สามารถเปิดพาธใน File Explorer ได้",
   "native.clipboardOpenFailed": "ไม่สามารถเปิดคลิปบอร์ดได้",
   "native.clipboardAllocationFailed": "ไม่สามารถจัดสรรหน่วยความจำคลิปบอร์ดได้",

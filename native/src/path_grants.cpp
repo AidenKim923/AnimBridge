@@ -146,7 +146,7 @@ PathGrantRegistry::Json PathGrantRegistry::issue(const fs::path& chosen, GrantPu
 }
 fs::path PathGrantRegistry::resolve(const std::string& token, GrantPurpose purpose, const fs::path& child) const {
     std::lock_guard lock(mutex_); auto found = grants_.find(token);
-    if (found == grants_.end() || found->second.record.at("purpose") != purposeName(purpose)) throw UiError("native.openPathNotAllowed", "Missing or incorrect native path approval. Select the path again.");
+    if (found == grants_.end() || found->second.record.at("purpose") != purposeName(purpose)) throw UiError("native.pathApprovalMissing", "The approval for this path is missing or expired. Select the file or folder again.");
     validate(found->second.record); auto path = fromUtf8(found->second.record.at("path"));
     if (child.empty()) return path;
     if (!fs::is_directory(path) || !pathWithin(child, path)) throw std::runtime_error("Path is outside its approved root");

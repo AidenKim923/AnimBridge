@@ -510,6 +510,7 @@ export default {
   'native.outputWriteDenied': '無法寫入輸出資料夾。',
   'native.outputSpaceLow': '輸出資料夾的可用空間小於 1 MiB。',
   'native.openPathNotAllowed': '僅可開啟已驗證的本機檔案和輸出資料夾。',
+  'native.pathApprovalMissing': '此路徑的授權遺失或已過期。請重新選擇檔案或資料夾。',
   'native.explorerOpenFailed': '無法在檔案資源管理器中開啟路徑。',
   'native.clipboardOpenFailed': '無法開啟剪貼簿。',
   'native.clipboardAllocationFailed': '無法分配剪貼簿記憶體。',

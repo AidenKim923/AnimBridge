@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "مجلد الإخراج غير قابل للكتابة.",
   "native.outputSpaceLow": "تقل المساحة الحرة في مجلد الإخراج عن 1 ميبيبايت.",
   "native.openPathNotAllowed": "لا يمكن فتح سوى الملفات المحلية ومجلدات الإخراج التي تم التحقق منها.",
+  "native.pathApprovalMissing": "إذن هذا المسار مفقود أو منتهي الصلاحية. اختر الملف أو المجلد مرة أخرى.",
   "native.explorerOpenFailed": "تعذر فتح المسار في مستكشف الملفات.",
   "native.clipboardOpenFailed": "تعذر فتح الحافظة.",
   "native.clipboardAllocationFailed": "تعذر تخصيص ذاكرة للحافظة.",

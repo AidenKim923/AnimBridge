@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "Nie można zapisywać w folderze wynikowym.",
   "native.outputSpaceLow": "W folderze wynikowym pozostało mniej niż 1 MiB wolnego miejsca.",
   "native.openPathNotAllowed": "Można otwierać tylko zweryfikowane pliki lokalne i foldery wynikowe.",
+  "native.pathApprovalMissing": "Brak zgody dla tej ścieżki lub wygasła. Wybierz plik lub folder ponownie.",
   "native.explorerOpenFailed": "Nie udało się otworzyć ścieżki w Eksploratorze plików.",
   "native.clipboardOpenFailed": "Nie udało się otworzyć schowka.",
   "native.clipboardAllocationFailed": "Nie udało się przydzielić pamięci schowka.",

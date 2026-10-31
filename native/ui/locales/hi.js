@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "आउटपुट फ़ोल्डर में लिखा नहीं जा सकता।",
   "native.outputSpaceLow": "आउटपुट फ़ोल्डर में 1 MiB से कम खाली जगह है।",
   "native.openPathNotAllowed": "केवल सत्यापित स्थानीय फ़ाइलें और आउटपुट फ़ोल्डर खोल सकते हैं।",
+  "native.pathApprovalMissing": "इस पथ की अनुमति मौजूद नहीं है या समाप्त हो गई है। फ़ाइल या फ़ोल्डर फिर से चुनें।",
   "native.explorerOpenFailed": "File Explorer में पथ नहीं खोल सके।",
   "native.clipboardOpenFailed": "क्लिपबोर्ड नहीं खोल सके।",
   "native.clipboardAllocationFailed": "क्लिपबोर्ड की मेमोरी आवंटित नहीं कर सके।",

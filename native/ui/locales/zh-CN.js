@@ -510,6 +510,7 @@ export default {
   'native.outputWriteDenied': '无法写入输出文件夹。',
   'native.outputSpaceLow': '输出文件夹的可用空间小于 1 MiB。',
   'native.openPathNotAllowed': '仅可打开已验证的本地文件和输出文件夹。',
+  'native.pathApprovalMissing': '此路径的授权缺失或已过期。请重新选择文件或文件夹。',
   'native.explorerOpenFailed': '无法在文件资源管理器中打开路径。',
   'native.clipboardOpenFailed': '无法打开剪贴板。',
   'native.clipboardAllocationFailed': '无法分配剪贴板内存。',

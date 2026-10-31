@@ -52,6 +52,7 @@ private:
     Options options(const Json& value) const;
     Plan plan(const Json& payload, bool preflight = false) const;
     Json run(Plan plan, Json optionSnapshot);
+    void approveDefaultOutputRoot();
     bool allowedPath(const fs::path& path) const;
     Json authorizePayload(const Json& payload, const std::string& action) const;
     void verifyPlanGrants(const Plan&) const;

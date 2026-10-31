@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "Le dossier de sortie n’est pas accessible en écriture.",
   "native.outputSpaceLow": "Le dossier de sortie dispose de moins de 1 Mio d’espace libre.",
   "native.openPathNotAllowed": "Seuls les fichiers locaux vérifiés et les dossiers de sortie peuvent être ouverts.",
+  "native.pathApprovalMissing": "L’autorisation de ce chemin est absente ou expirée. Sélectionnez à nouveau le fichier ou le dossier.",
   "native.explorerOpenFailed": "Impossible d’ouvrir le chemin dans l’Explorateur de fichiers.",
   "native.clipboardOpenFailed": "Impossible d’ouvrir le presse-papiers.",
   "native.clipboardAllocationFailed": "Impossible d’allouer la mémoire du presse-papiers.",

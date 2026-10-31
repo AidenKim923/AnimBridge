@@ -349,10 +349,12 @@ DesktopBridge::DesktopBridge(Sender send, DesktopPlatformServices services, cons
         auto bundled = std::string(key) == "python" ? runtimePaths().python : runtimePaths().blender;
         if (!developmentMode() || (fromUtf8(valueString(settings_, key)) != bundled && !grants_.permits(fromUtf8(valueString(settings_, key)), GrantPurpose::Editor))) settings_[key] = utf8(bundled);
     }
+    approveDefaultOutputRoot();
     for (const auto* key : {"outputRoot", "skeleton", "unityEditor", "unreal_editor", "unityProject"}) {
         auto purpose = std::string(key) == "outputRoot" ? GrantPurpose::ExportRoot : std::string(key) == "unityEditor" || std::string(key) == "unreal_editor" ? GrantPurpose::Editor : std::string(key) == "unityProject" ? GrantPurpose::EngineProject : GrantPurpose::Read;
         auto stored = valueString(settings_, key);
         if (!stored.empty() && !grants_.permits(fromUtf8(stored), purpose)) settings_[std::string(key) + "Approval"] = "stale";
+        else settings_.erase(std::string(key) + "Approval");
     }
     // Cache ownership is fixed; a saved/custom path never expands deletion authority.
     settings_["cacheRoot"] = utf8(cache_);
@@ -1015,6 +1017,24 @@ DesktopBridge::Json DesktopBridge::convertUnrealAsset(const Json& prepared) {
     }
     return {{"status", "converted"}, {"manifest", utf8(approved)}, {"outputs", response.value("outputs", Json::array())},
         {"clipIds", clipIds}, {"objectPath", prepared.at("unreal_object_path")}, {"log", valueString(response, "log")}};
+}
+// The default output folder (Documents/AnimBridge) is chosen by the app, not in
+// a native picker, so no picker ever approves it. Create and approve it here so
+// a first export works without choosing a folder. A folder the user picked
+// keeps its own approval and is never touched.
+void DesktopBridge::approveDefaultOutputRoot() {
+    const auto stored = valueString(settings_, "outputRoot");
+    if (stored.empty() || fromUtf8(stored).lexically_normal() != context_.exportRoot.lexically_normal()) return;
+    try {
+        if (grants_.permits(context_.exportRoot, GrantPurpose::ExportRoot)) return;
+        fs::create_directories(context_.exportRoot);
+        auto grant = grants_.issue(context_.exportRoot, GrantPurpose::ExportRoot, GrantSource::AppOutput);
+        // The UI matches approvals by exact path text, so use the approved spelling.
+        settings_["outputRoot"] = grant.at("path");
+    } catch (const std::exception&) {
+        // Not writable (e.g. a locked Documents folder): the caller marks the
+        // setting stale and the user picks another folder.
+    }
 }
 bool DesktopBridge::allowedPath(const fs::path& path) const {
     if (path.empty() || !fs::exists(path)) return false;

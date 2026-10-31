@@ -43,6 +43,7 @@ export default {
   "native.outputWriteDenied": "The output folder is not writable.",
   "native.outputSpaceLow": "The output folder has less than 1 MiB of free space.",
   "native.openPathNotAllowed": "Only verified local files and output folders can be opened.",
+  "native.pathApprovalMissing": "The approval for this path is missing or expired. Select the file or folder again.",
   "native.explorerOpenFailed": "Could not open the path in File Explorer.",
   "native.clipboardOpenFailed": "Could not open the clipboard.",
   "native.clipboardAllocationFailed": "Could not allocate clipboard memory.",

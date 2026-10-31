@@ -43,6 +43,7 @@ export default {
   "native.outputWriteDenied": "출력 폴더에 쓸 권한이 없습니다.",
   "native.outputSpaceLow": "출력 폴더의 여유 공간이 1MiB 미만입니다.",
   "native.openPathNotAllowed": "앱이 확인한 로컬 파일 또는 출력 폴더만 열 수 있습니다.",
+  "native.pathApprovalMissing": "이 경로의 사용 허가가 없거나 만료되었습니다. 파일이나 폴더를 다시 선택하세요.",
   "native.explorerOpenFailed": "파일 탐색기에서 경로를 열지 못했습니다.",
   "native.clipboardOpenFailed": "클립보드를 열 수 없습니다.",
   "native.clipboardAllocationFailed": "클립보드 메모리를 할당하지 못했습니다.",

@@ -122,6 +122,19 @@ int main(int argc, char** argv) {
             ++passed;
         }
         {
+            // The default output folder is chosen by the app, never in a picker, so
+            // the app must create and approve it itself; otherwise the first export
+            // plan fails with a missing approval.
+            Harness h(root / "default-output");
+            const auto state = h.ok("getState");
+            const auto expected = utf8(fs::canonical(root / "default-output" / "exports"));
+            require(state["settings"]["outputRoot"] == expected && !state["settings"].contains("outputRootApproval"), "Default output folder was not created and approved");
+            bool granted = false;
+            for (const auto& grant : state["pathGrants"]) if (grant["purpose"] == "exportRoot" && grant["source"] == "app-output" && grant["path"] == expected) granted = true;
+            require(granted, "Default output folder has no export approval");
+            ++passed;
+        }
+        {
             Harness h(root / "app-info");
             const auto info = h.ok("getAppInfo");
             require(info["version"].get<std::string>() == app::Version, "Desktop version differs from build metadata");

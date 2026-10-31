@@ -505,6 +505,7 @@ export default {
   "native.outputWriteDenied": "No se puede escribir en la carpeta de salida.",
   "native.outputSpaceLow": "La carpeta de salida tiene menos de 1 MiB de espacio libre.",
   "native.openPathNotAllowed": "Solo se pueden abrir archivos locales verificados y carpetas de salida.",
+  "native.pathApprovalMissing": "Falta la aprobación de esta ruta o ha caducado. Vuelve a seleccionar el archivo o la carpeta.",
   "native.explorerOpenFailed": "No se pudo abrir la ruta en el Explorador de archivos.",
   "native.clipboardOpenFailed": "No se pudo abrir el portapapeles.",
   "native.clipboardAllocationFailed": "No se pudo asignar memoria al portapapeles.",
