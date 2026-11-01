@@ -196,7 +196,7 @@ function showBones(p) {
 }
 function syncPreviews() {
   const options = JSON.stringify(previewOptions());
-  previewQueue.concurrency = Math.max(1, Math.min(2, native.readConcurrency || 2));
+  previewQueue.concurrency = Math.max(1, native.readConcurrency || 2);
   previewQueue.sync(clips().filter((c) => ['anim', 'fbx', 'baked'].includes(c.kind)),
     (c) => JSON.stringify([c.source, c.sourceHash, c.parserVersion, c.name, options]));
 }
@@ -776,14 +776,21 @@ function visibleClips() {
           (view.min === '' || c.duration >= +view.min) &&
           (view.max === '' || c.duration <= +view.max))),
   );
+  // Clips whose preview is ready come first, then ones still preparing,
+  // then ones without a preview; the chosen sort applies within each group.
   a.sort((a, b) =>
-    view.sort === 'duration'
+    previewRank(a) - previewRank(b) ||
+    (view.sort === 'duration'
       ? (a.duration || Infinity) - (b.duration || Infinity)
       : view.sort === 'type'
         ? typeLabel(a).localeCompare(typeLabel(b))
-        : a.name.localeCompare(b.name, getLocale()),
+        : a.name.localeCompare(b.name, getLocale())),
   );
   return a;
+}
+function previewRank(c) {
+  if (previews.get(c.id)?.status === 'ready') return 0;
+  return !previewQueue.suspended && previewQueue.status(c.id) ? 1 : 2;
 }
 function jobId(j) {
   return j?.attemptId || j?.attempt_id || j?.jobId || j?.job_id || j?.id || '';
@@ -1973,6 +1980,21 @@ function mountViewer(c) {
 }
 // A finished background preview only changes its own card thumbnail; replace just that node.
 // Returns false when anything else on screen depends on the result (caller does a full render).
+// A finished preview moves its card forward. Moving the existing card nodes
+// keeps every other thumbnail's canvas and viewer instead of rebuilding them.
+function reorderCards() {
+  const grid = app.querySelector('.clip-grid');
+  if (!grid) return;
+  const cards = new Map([...grid.querySelectorAll(':scope > .clip-card')].map((x) => [x.dataset.clip, x]));
+  let previous = null;
+  for (const c of visibleClips()) {
+    const card = cards.get(c.id);
+    if (!card) continue;
+    const expected = previous ? previous.nextElementSibling : grid.firstElementChild;
+    if (card !== expected) grid.insertBefore(card, expected);
+    previous = card;
+  }
+}
 function patchThumbnails(ids) {
   if (view.page !== 'library' || view.layout !== 'grid' || view.sort === 'duration' || moveGesture) return false;
   // The overall progress bar must stay in sync with the patched cards.
@@ -2006,6 +2028,7 @@ function patchThumbnails(ids) {
     next.querySelectorAll('canvas[data-thumbnail]').forEach(mountViewer);
   }
   if (bar) bar.outerHTML = barMarkup;
+  reorderCards();
   lastMarkup = buildMarkup();
   ensureAnimation();
   return true;

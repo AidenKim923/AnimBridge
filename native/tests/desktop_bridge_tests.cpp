@@ -5,6 +5,8 @@
 #include "animbridge/path_identity.hpp"
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <condition_variable>
 #include <fstream>
 #include <iostream>
@@ -114,6 +116,23 @@ int main(int argc, char** argv) {
     try {
         auto root = fs::absolute(argc > 1 ? fromUtf8(argv[1]) : fs::path("desktop-tests")) / newIdentity(); fs::create_directories(root);
         unsigned passed = 0;
+        {
+            // Preview concurrency follows logical cores, keeps 1.5 GB of RAM per preview, and stays within 2..16.
+            const std::uint64_t gb = 1024ull * 1024 * 1024;
+            require(previewReadConcurrency(16, 32 * gb) == 16, "16 cores with plenty of RAM should run 16 previews");
+            require(previewReadConcurrency(16, 6 * gb) == 4, "RAM should cap the preview count");
+            require(previewReadConcurrency(64, 256 * gb) == 16, "preview count is capped at 16");
+            require(previewReadConcurrency(1, 2 * gb) == 2 && previewReadConcurrency(0, 0) == 2, "at least two previews run at once");
+            require(previewReadConcurrency(8, 0) == 8, "unknown RAM falls back to the core count");
+            ++passed;
+        }
+        // The scenarios below check the read pool against a fixed bound of two.
+#ifdef _WIN32
+        _putenv_s("ANIMBRIDGE_READ_CONCURRENCY", "2");
+#else
+        setenv("ANIMBRIDGE_READ_CONCURRENCY", "2", 1);
+#endif
+        require(machineReadConcurrency() == 2, "ANIMBRIDGE_READ_CONCURRENCY override is ignored");
         {
             const auto localized = messageData(UiError("native.helperNoResult", "Evaluator failed: <raw log>", {{"log", "<raw log>"}, {"exitCode", 7}}));
             require(localized["messageKey"] == "native.helperNoResult" && localized["messageParams"]["log"] == "<raw log>", "Native message parameters were altered");

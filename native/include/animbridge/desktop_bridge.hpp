@@ -5,6 +5,8 @@
 #include <nlohmann/json.hpp>
 #include <atomic>
 #include <array>
+#include <cstdint>
+#include <vector>
 #include <condition_variable>
 #include <deque>
 #include <memory>
@@ -13,6 +15,13 @@
 #include <thread>
 
 namespace animbridge {
+// How many previews may prepare at once. Each one runs its own Python plus
+// Blender or Unity process, so use every logical core but keep at least
+// 1.5 GB of RAM per preview. The result is clamped to 2..16.
+unsigned previewReadConcurrency(unsigned logicalCores, std::uint64_t physicalBytes);
+// The value for this computer. ANIMBRIDGE_READ_CONCURRENCY (1..64) overrides it.
+unsigned machineReadConcurrency();
+
 // Mutations use one exclusive worker; independent previews use a bounded read pool.
 // Callbacks marshal JSON to the UI thread.
 class DesktopBridge {
@@ -75,8 +84,8 @@ private:
     fs::path root_, statePath_, cache_;
     std::string cacheIdentity_;
     std::thread worker_;
-    static constexpr unsigned ReadConcurrency = 2;
-    std::array<std::thread, ReadConcurrency> readWorkers_;
+    const unsigned readConcurrency_ = machineReadConcurrency();
+    std::vector<std::thread> readWorkers_;
     std::mutex workMutex_;
     std::condition_variable readReady_;
     std::deque<std::function<void()>> readTasks_;

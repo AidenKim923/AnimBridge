@@ -343,3 +343,11 @@ def test_failed_embedded_evaluation_retries_with_the_regular_default(tmp_path, m
     result = desktop.preview({"source": str(clip), "humanoid": True, "cache": str(tmp_path / "cache")})
     assert result["status"] == "ready" and result["default_character"]["name"] == "UE5 Mannequin (Manny)"
     assert tried == [str(clip.resolve()), str(manny)]
+
+
+def test_unity_preview_slots_follow_ram_within_two_to_four():
+    gb = 1024 ** 3
+    assert default_humanoid.unity_preview_slots(32 * gb) == 4
+    assert default_humanoid.unity_preview_slots(12 * gb) == 3
+    assert default_humanoid.unity_preview_slots(6 * gb) == 2
+    assert default_humanoid.unity_preview_slots(0) == 2  # unknown RAM keeps the old default

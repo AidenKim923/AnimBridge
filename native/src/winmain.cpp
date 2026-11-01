@@ -29,6 +29,10 @@ constexpr UINT BridgeMessage = WM_APP + 1;
 constexpr UINT WindowCommandMessage = WM_APP + 2;
 constexpr UINT UiDispatchMessage = WM_APP + 3;
 constexpr UINT NativeDocumentMessage = WM_APP + 4;
+constexpr UINT RecreateWebViewMessage = WM_APP + 5;
+// How often a crashed WebView2 browser process is replaced before giving up.
+constexpr int MaxWebViewRestarts = 3;
+int webViewRestarts = 0;
 WebViewSession transport;
 std::atomic_bool closing{false};
 constexpr wchar_t Origin[] = L"https://animbridge.local/";
@@ -848,6 +852,9 @@ void configure() {
     webview->add_ProcessFailed(Callback<ICoreWebView2ProcessFailedEventHandler>([](ICoreWebView2* sender, ICoreWebView2ProcessFailedEventArgs* args) -> HRESULT {
         COREWEBVIEW2_PROCESS_FAILED_KIND kind{}; args->get_ProcessFailedKind(&kind);
         if (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED || kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE) sender->Reload();
+        // When the whole browser process is gone, this WebView can never draw again.
+        // Build a new one; the native bridge and its state are kept.
+        else if (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED && window) PostMessageW(window, RecreateWebViewMessage, 0, 0);
         return S_OK;
     }).Get(), &token);
     // Downloads are never allowed; the host has no download UI.
@@ -962,6 +969,16 @@ LRESULT CALLBACK proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
         if (!closing) (*action)();
         return 0;
     }
+    case RecreateWebViewMessage:
+        if (closing) return 0;
+        if (++webViewRestarts > MaxWebViewRestarts) {
+            fatal(L"Microsoft Edge WebView2 stopped repeatedly. Restart AnimBridge.", E_FAIL);
+            return 0;
+        }
+        if (controller) controller->Close();
+        webview.Reset(); controller.Reset(); environment.Reset();
+        initializeWebView();
+        return 0;
     case NativeDocumentMessage: {
         std::unique_ptr<std::vector<fs::path>> paths(reinterpret_cast<std::vector<fs::path>*>(lp));
         if (bridge && !closing) {

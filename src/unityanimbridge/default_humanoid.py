@@ -264,10 +264,43 @@ def cache_lock(path, timeout=660):
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def _physical_memory_bytes():
+    """Total RAM in bytes, or 0 when the platform does not report it."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong),
+                            ("total_physical", ctypes.c_ulonglong), ("available_physical", ctypes.c_ulonglong),
+                            ("total_page", ctypes.c_ulonglong), ("available_page", ctypes.c_ulonglong),
+                            ("total_virtual", ctypes.c_ulonglong), ("available_virtual", ctypes.c_ulonglong),
+                            ("available_extended", ctypes.c_ulonglong)]
+            status = MemoryStatus(length=ctypes.sizeof(MemoryStatus))
+            return status.total_physical if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)) else 0
+        if hasattr(os, "sysconf") and "SC_PHYS_PAGES" in os.sysconf_names:
+            return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+        output = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5).stdout
+        return int(output.strip() or 0)
+    except (OSError, ValueError, subprocess.SubprocessError, AttributeError):
+        return 0
+
+
+def unity_preview_slots(memory_bytes=None):
+    """Unity Editors running at once for previews: one per 4 GB of RAM, 2..4.
+
+    Each slot is a full Unity project copy and a Unity Editor uses several GB,
+    so this stays well below the native preview pool, which also runs Blender.
+    """
+    memory = _physical_memory_bytes() if memory_bytes is None else memory_bytes
+    return max(2, min(4, memory // (4 * 1024 ** 3))) if memory else 2
+
+
 @contextlib.contextmanager
-def cache_slot(root, slots=2, timeout=660):
+def cache_slot(root, slots=None, timeout=660):
     """Take the first free project slot without queueing behind a busy slot."""
     root = Path(root)
+    slots = unity_preview_slots() if slots is None else slots
     deadline = time.monotonic() + timeout
     while True:
         for index in range(slots):

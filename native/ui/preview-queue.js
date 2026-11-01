@@ -66,7 +66,8 @@ export class PreviewQueue {
         record.started = false;
         this.running.delete(promise);
         this.changed(record.item.id);
-        this.schedule(100);
+        // A finished read frees its slot at once; a refused one waits briefly before retrying.
+        this.schedule(record.done ? 0 : 100);
       });
       this.running.add(promise);
     }

@@ -296,8 +296,8 @@ def _unity(request, operation, work):
                     ("UnityAnimBridgeBaker.cs", "AnimBridgeDesktopHelper.cs", "AnimBridgePreview.cs")]}
     key = hashlib.sha256(json.dumps(fingerprint, sort_keys=True).encode()).hexdigest()[:32]
     root = Path(request.get("cache") or default_data_root() / "helper").resolve() / "unity-preview-projects" / key
-    # Each model has two independent AssetDatabases, retaining imported data and
-    # compiled helpers while allowing two cold clips to evaluate concurrently.
+    # Each model has up to four independent AssetDatabases (see unity_preview_slots),
+    # retaining imported data and compiled helpers while cold clips evaluate concurrently.
     with cache_slot(root) as slot:
         return _unity_run(dict(request, _preview_project=str(slot / "project")), operation, work)
 

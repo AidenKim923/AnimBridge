@@ -12,9 +12,15 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <cstdlib>
+#include <thread>
 #ifdef _WIN32
 #include <windows.h>
 #include <shlobj.h>
+#elif defined(__APPLE__)
+#include <sys/sysctl.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace animbridge {
@@ -362,7 +368,7 @@ DesktopBridge::DesktopBridge(Sender send, DesktopPlatformServices services, cons
     auto marker = cache_ / ".animbridge-cache-owner.json";
     if (!fs::exists(marker)) FileCommitter::writeAtomic(marker, Json{{"owner", "AnimBridge"}, {"identity", cacheIdentity_}, {"entries", {"packages", "jobs", "ipc", "helper", "editor-probes"}}}.dump(), false);
     if (migrated_ && persistAllowed_) persist();
-    try { for (auto& worker : readWorkers_) worker = std::thread([this] { readLoop(); }); }
+    try { for (unsigned i = 0; i < readConcurrency_; ++i) readWorkers_.emplace_back([this] { readLoop(); }); }
     catch (...) {
         { std::lock_guard lock(workMutex_); stopping_ = true; }
         readReady_.notify_all();
@@ -390,6 +396,28 @@ DesktopBridge::~DesktopBridge() {
     for (auto& worker : readWorkers_) if (worker.joinable()) worker.join();
 }
 void DesktopBridge::cancel() { cancel_->store(true); }
+unsigned previewReadConcurrency(unsigned logicalCores, std::uint64_t physicalBytes) {
+    constexpr std::uint64_t bytesPerPreview = 1536ull * 1024 * 1024;
+    std::uint64_t limit = logicalCores ? logicalCores : 2;
+    if (physicalBytes) limit = std::min(limit, physicalBytes / bytesPerPreview);
+    return static_cast<unsigned>(std::clamp<std::uint64_t>(limit, 2, 16));
+}
+unsigned machineReadConcurrency() {
+    if (auto text = std::getenv("ANIMBRIDGE_READ_CONCURRENCY")) {
+        try { auto value = std::stoul(text); if (value >= 1 && value <= 64) return static_cast<unsigned>(value); } catch (...) {}
+    }
+    std::uint64_t physical = 0;
+#ifdef _WIN32
+    MEMORYSTATUSEX memory{}; memory.dwLength = sizeof(memory);
+    if (GlobalMemoryStatusEx(&memory)) physical = memory.ullTotalPhys;
+#elif defined(__APPLE__)
+    std::size_t size = sizeof(physical); if (sysctlbyname("hw.memsize", &physical, &size, nullptr, 0) != 0) physical = 0;
+#else
+    auto pages = sysconf(_SC_PHYS_PAGES), pageSize = sysconf(_SC_PAGE_SIZE);
+    if (pages > 0 && pageSize > 0) physical = static_cast<std::uint64_t>(pages) * static_cast<std::uint64_t>(pageSize);
+#endif
+    return previewReadConcurrency(std::thread::hardware_concurrency(), physical);
+}
 DesktopBridge::Json DesktopBridge::stateLocked() const {
     auto session = Json::parse(sessionJson(session_)); Json ids = Json::array();
     session["warningMessages"] = warningMessages_;
@@ -403,7 +431,7 @@ DesktopBridge::Json DesktopBridge::stateLocked() const {
     return {{"schemaVersion", 2}, {"pathGrants", grants_.publicRecords()}, {"stalePathApprovals", staleGrants_}, {"runtimeReadOnly", !developmentMode()}, {"program", "AnimBridge"}, {"session", session}, {"clips", session["clips"]},
         {"selectedIds", ids}, {"packages", packages}, {"settings", settings_}, {"jobs", jobs_},
         {"history", history_}, {"busy", busy_.load()}, {"readBusy", working() && !busy_.load()},
-        {"readActive", readOutstanding_.load()}, {"readConcurrency", ReadConcurrency},
+        {"readActive", readOutstanding_.load()}, {"readConcurrency", readConcurrency_},
         {"retryAttemptId", lastPlan_ && std::any_of(lastResults_.begin(), lastResults_.end(), [](const Result& r) { return r.status == "error" || r.status == "blocked"; }) ? lastPlan_->attemptId : ""},
         {"statePersistenceEnabled", persistAllowed_}, {"cacheLocationReadOnly", true}, {"scan", scan_}, {"unity", unity_}, {"unityAuto", unityAuto_}, {"unrealAuto", unrealAuto_}, {"skeleton", skeleton_},
         {"defaultHumanoidCapability", {{"state", valueString(settings_, "unreal_editor").empty() ? "needs-unreal-editor" : "recheck-on-use"}, {"engineVersion", "5.8.2"}, {"readScope", "two-fixed-template-files"}}}};
@@ -657,7 +685,7 @@ void DesktopBridge::readLoop() {
 void DesktopBridge::backgroundRead(const Json& id, const std::string& operation, Json payload) {
     {
         std::lock_guard lock(workMutex_);
-        if (working_.load() || readOutstanding_.load() >= ReadConcurrency || stopping_) {
+        if (working_.load() || readOutstanding_.load() >= readConcurrency_ || stopping_) {
             error(id, busy_ ? "BUSY" : "READ_IN_PROGRESS", UiError("native.analysisBusy", "Wait for analysis, preview, or connection validation to finish or be cancelled before trying again.")); return;
         }
         // Never clear a cancellation flag while another read still owns it.
